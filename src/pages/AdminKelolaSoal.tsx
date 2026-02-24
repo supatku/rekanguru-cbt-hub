@@ -42,12 +42,12 @@ interface Question {
     id: string;
     jenjang: string;
     mapel: string;
-    paket: number;
-    tipe: string;
-    teks: string;
-    image_url: string;
-    opsi: QuestionOption[];
-    kunci: string;
+    paket_ke: number;
+    tipe_soal: string;
+    teks_soal: string;
+    link_gambar: string;
+    opsi_jawaban: QuestionOption[];
+    kunci_jawaban: string;
     created_at: string;
 }
 
@@ -91,7 +91,7 @@ const AdminKelolaSoal = () => {
                 .select('*')
                 .eq('jenjang', filterJenjang)
                 .eq('mapel', filterMapel)
-                .eq('paket', parseInt(filterPaket))
+                .eq('paket_ke', parseInt(filterPaket))
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -107,17 +107,17 @@ const AdminKelolaSoal = () => {
         setEditingQuestion({
             jenjang: filterJenjang,
             mapel: filterMapel,
-            paket: parseInt(filterPaket),
-            tipe: 'PG_BIASA',
-            teks: '',
-            image_url: '',
-            opsi: [
+            paket_ke: parseInt(filterPaket),
+            tipe_soal: 'PG_BIASA',
+            teks_soal: '',
+            link_gambar: '',
+            opsi_jawaban: [
                 { key: 'A', label: '' },
                 { key: 'B', label: '' },
                 { key: 'C', label: '' },
                 { key: 'D', label: '' },
             ],
-            kunci: 'A'
+            kunci_jawaban: 'A'
         });
         setIsDialogOpen(true);
     };
@@ -176,24 +176,24 @@ const AdminKelolaSoal = () => {
 
     const addOption = () => {
         if (!editingQuestion) return;
-        const nextKey = String.fromCharCode(65 + (editingQuestion.opsi?.length || 0));
+        const nextKey = String.fromCharCode(65 + (editingQuestion.opsi_jawaban?.length || 0));
         setEditingQuestion({
             ...editingQuestion,
-            opsi: [...(editingQuestion.opsi || []), { key: nextKey, label: '' }]
+            opsi_jawaban: [...(editingQuestion.opsi_jawaban || []), { key: nextKey, label: '' }]
         });
     };
 
     const removeOption = (idx: number) => {
-        if (!editingQuestion || !editingQuestion.opsi) return;
-        const newOptions = editingQuestion.opsi.filter((_, i) => i !== idx);
-        setEditingQuestion({ ...editingQuestion, opsi: newOptions });
+        if (!editingQuestion || !editingQuestion.opsi_jawaban) return;
+        const newOptions = editingQuestion.opsi_jawaban.filter((_, i) => i !== idx);
+        setEditingQuestion({ ...editingQuestion, opsi_jawaban: newOptions });
     };
 
     const updateOption = (idx: number, val: string) => {
-        if (!editingQuestion || !editingQuestion.opsi) return;
-        const newOptions = [...editingQuestion.opsi];
+        if (!editingQuestion || !editingQuestion.opsi_jawaban) return;
+        const newOptions = [...editingQuestion.opsi_jawaban];
         newOptions[idx].label = val;
-        setEditingQuestion({ ...editingQuestion, opsi: newOptions });
+        setEditingQuestion({ ...editingQuestion, opsi_jawaban: newOptions });
     };
 
     if (!isAuthenticated) {
@@ -325,11 +325,11 @@ const AdminKelolaSoal = () => {
                                     <TableRow key={q.id} className="group transition-colors hover:bg-slate-50">
                                         <TableCell>
                                             <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-black">
-                                                {q.tipe}
+                                                {q.tipe_soal}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="max-w-md truncate text-sm font-medium text-slate-600">
-                                            {q.teks}
+                                            {q.teks_soal}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
@@ -406,15 +406,15 @@ const AdminKelolaSoal = () => {
                                         type="number"
                                         min="1"
                                         max="8"
-                                        value={editingQuestion.paket}
-                                        onChange={(e) => setEditingQuestion({ ...editingQuestion, paket: parseInt(e.target.value) })}
+                                        value={editingQuestion.paket_ke}
+                                        onChange={(e) => setEditingQuestion({ ...editingQuestion, paket_ke: parseInt(e.target.value) })}
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Tipe Soal</Label>
                                     <Select
-                                        value={editingQuestion.tipe}
-                                        onValueChange={(v) => setEditingQuestion({ ...editingQuestion, tipe: v })}
+                                        value={editingQuestion.tipe_soal}
+                                        onValueChange={(v) => setEditingQuestion({ ...editingQuestion, tipe_soal: v })}
                                     >
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
@@ -431,8 +431,8 @@ const AdminKelolaSoal = () => {
                                 <Textarea
                                     rows={4}
                                     placeholder="Ketik pertanyaan di sini..."
-                                    value={editingQuestion.teks}
-                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, teks: e.target.value })}
+                                    value={editingQuestion.teks_soal}
+                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, teks_soal: e.target.value })}
                                 />
                             </div>
 
@@ -440,8 +440,8 @@ const AdminKelolaSoal = () => {
                                 <Label>Link Gambar (Opsional)</Label>
                                 <Input
                                     placeholder="https://..."
-                                    value={editingQuestion.image_url}
-                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, image_url: e.target.value })}
+                                    value={editingQuestion.link_gambar}
+                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, link_gambar: e.target.value })}
                                 />
                             </div>
 
@@ -453,7 +453,7 @@ const AdminKelolaSoal = () => {
                                     </Button>
                                 </div>
                                 <div className="space-y-2">
-                                    {editingQuestion.opsi?.map((opt, idx) => (
+                                    {editingQuestion.opsi_jawaban?.map((opt, idx) => (
                                         <div key={idx} className="flex gap-2">
                                             <div className="flex w-12 items-center justify-center rounded-lg bg-slate-100 font-bold">
                                                 {opt.key}
@@ -475,8 +475,8 @@ const AdminKelolaSoal = () => {
                                 <Label>Kunci Jawaban</Label>
                                 <Input
                                     placeholder="Contoh: A (atau A,C untuk kompleks)"
-                                    value={editingQuestion.kunci}
-                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, kunci: e.target.value })}
+                                    value={editingQuestion.kunci_jawaban}
+                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, kunci_jawaban: e.target.value })}
                                 />
                             </div>
                         </div>
