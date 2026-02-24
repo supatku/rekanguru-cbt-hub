@@ -48,6 +48,7 @@ interface Question {
     link_gambar: string;
     opsi_jawaban: QuestionOption[];
     kunci_jawaban: string;
+    topik: string;
     created_at: string;
 }
 
@@ -117,7 +118,8 @@ const AdminKelolaSoal = () => {
                 { key: 'C', label: '' },
                 { key: 'D', label: '' },
             ],
-            kunci_jawaban: 'A'
+            kunci_jawaban: 'A',
+            topik: ''
         });
         setIsDialogOpen(true);
     };
@@ -436,13 +438,24 @@ const AdminKelolaSoal = () => {
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Link Gambar (Opsional)</Label>
-                                <Input
-                                    placeholder="https://..."
-                                    value={editingQuestion.link_gambar}
-                                    onChange={(e) => setEditingQuestion({ ...editingQuestion, link_gambar: e.target.value })}
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Topik Materi (Untuk Rekomendasi Belajar)</Label>
+                                    <Input
+                                        placeholder="Contoh: Operasi Pecahan"
+                                        value={editingQuestion.topik}
+                                        onChange={(e) => setEditingQuestion({ ...editingQuestion, topik: e.target.value })}
+                                        className="font-bold border-sky-200"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Link Gambar (Opsional)</Label>
+                                    <Input
+                                        placeholder="https://..."
+                                        value={editingQuestion.link_gambar}
+                                        onChange={(e) => setEditingQuestion({ ...editingQuestion, link_gambar: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
                             <div className="space-y-3">
