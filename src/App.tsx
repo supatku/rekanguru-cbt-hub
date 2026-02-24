@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard";
 import PilihPaket from "./pages/PilihPaket";
 import PilihMapel from "./pages/PilihMapel";
 import ExamInterface from "./pages/ExamInterface";
@@ -19,6 +20,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/paket/:level" element={<PilihPaket />} />
           <Route path="/mapel/:level/:paket" element={<PilihMapel />} />
           <Route path="/exam/:level/:paket/:mapel" element={<ExamInterface />} />
