@@ -1,4 +1,5 @@
 import { School, GraduationCap, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface LevelCardProps {
   icon: React.ReactNode;
@@ -26,6 +27,8 @@ const LevelCard = ({ icon, title, subtitle, onClick, delay }: LevelCardProps) =>
 );
 
 const LevelSelector = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-4">
       <LevelCard
@@ -33,12 +36,14 @@ const LevelSelector = () => {
         title="SD / MI"
         subtitle="Sekolah Dasar / Madrasah Ibtidaiyah"
         delay={0.4}
+        onClick={() => navigate("/paket/sd")}
       />
       <LevelCard
         icon={<GraduationCap className="h-6 w-6" />}
         title="SMP / MTs"
         subtitle="Sekolah Menengah Pertama / Madrasah Tsanawiyah"
         delay={0.55}
+        onClick={() => navigate("/paket/smp")}
       />
     </div>
   );
