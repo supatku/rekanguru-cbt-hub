@@ -16,6 +16,8 @@ const dummyQuestions = [
       { key: "C", label: "Gambar dengan 4 dari 8 bagian diwarnai" },
       { key: "D", label: "Gambar dengan 5 dari 10 bagian diwarnai" },
     ],
+    correct: "A",
+    imageUrl: "https://via.placeholder.com/600x300.png?text=Gambar+Soal",
   },
   {
     id: 2,
@@ -26,6 +28,8 @@ const dummyQuestions = [
       { key: "C", label: "1 3/4" },
       { key: "D", label: "2" },
     ],
+    correct: "A",
+    imageUrl: "",
   },
   {
     id: 3,
@@ -36,6 +40,8 @@ const dummyQuestions = [
       { key: "C", label: "205" },
       { key: "D", label: "215" },
     ],
+    correct: "A",
+    imageUrl: "",
   },
 ];
 
@@ -83,6 +89,37 @@ const ExamInterface = () => {
       }),
     [currentIndex],
   );
+
+  const handleSubmit = useCallback(() => {
+    // Calculate Score
+    let correctCount = 0;
+    // For dummy purposes, we only have 3 questions with correct keys
+    // In a real app, we'd map over all questions
+    dummyQuestions.forEach((q, idx) => {
+      if (answers[idx] === q.correct) {
+        correctCount++;
+      }
+    });
+
+    const score = Math.round((correctCount / dummyQuestions.length) * 100);
+
+    const result = {
+      paket: paket || "Unknown",
+      mapel: mapelLabel,
+      skor: score,
+      total_benar: correctCount,
+      total_soal: dummyQuestions.length,
+      tanggal: Date.now(),
+    };
+
+    // Save to localStorage
+    const existingProgress = JSON.parse(localStorage.getItem("cbt_student_progress") || "[]");
+    const updatedProgress = [result, ...existingProgress];
+    localStorage.setItem("cbt_student_progress", JSON.stringify(updatedProgress));
+
+    // Navigate to progress page
+    navigate("/student-progress");
+  }, [answers, paket, mapelLabel, navigate]);
 
   /* ── Derived counts ── */
   const answeredCount = Object.keys(answers).length;
@@ -138,6 +175,7 @@ const ExamInterface = () => {
 
           <Button
             size="sm"
+            onClick={handleSubmit}
             className="rounded-full bg-accent text-accent-foreground font-bold hover:bg-accent/90 shadow-md"
           >
             Selesai Ujian
@@ -160,11 +198,10 @@ const ExamInterface = () => {
               </div>
               <button
                 onClick={toggleFlag}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  flagged.has(currentIndex)
-                    ? "bg-amber-100 text-amber-700"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${flagged.has(currentIndex)
+                  ? "bg-amber-100 text-amber-700"
+                  : "text-muted-foreground hover:bg-muted"
+                  }`}
               >
                 <Flag className="h-4 w-4" />
                 Tandai
@@ -172,18 +209,15 @@ const ExamInterface = () => {
             </div>
 
             {/* Illustration placeholder */}
-            <div className="mb-5 flex items-center justify-center rounded-xl bg-muted/50 py-8">
-              <div className="flex gap-1">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-14 w-8 rounded border ${
-                      i < 4 ? "bg-amber-400 border-amber-500" : "bg-muted border-border"
-                    }`}
-                  />
-                ))}
+            {question.imageUrl && (
+              <div className="mb-5 flex justify-center overflow-hidden rounded-xl border border-border bg-muted/20">
+                <img
+                  src={question.imageUrl}
+                  alt="Ilustrasi Soal"
+                  className="max-h-64 w-auto object-contain p-2"
+                />
               </div>
-            </div>
+            )}
 
             {/* Question text */}
             <p className="mb-6 text-sm leading-relaxed text-foreground sm:text-base">
@@ -201,11 +235,10 @@ const ExamInterface = () => {
                 return (
                   <label
                     key={opt.key}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 transition ${
-                      selected
-                        ? "border-sky-400 bg-sky-50"
-                        : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
-                    }`}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 transition ${selected
+                      ? "border-sky-400 bg-sky-50"
+                      : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                      }`}
                   >
                     <RadioGroupItem value={opt.key} id={`opt-${opt.key}`} />
                     <span className="text-sm font-medium text-foreground">

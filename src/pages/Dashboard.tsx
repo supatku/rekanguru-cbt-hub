@@ -66,7 +66,10 @@ const Dashboard = () => {
             <button className="rounded-lg p-2 opacity-70 transition hover:bg-white/10 hover:opacity-100">
               <RefreshCw className="h-4 w-4" />
             </button>
-            <button className="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium opacity-80 transition hover:bg-white/10 hover:opacity-100 sm:flex">
+            <button
+              onClick={() => navigate("/student-progress")}
+              className="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium opacity-80 transition hover:bg-white/10 hover:opacity-100 sm:flex"
+            >
               <BarChart3 className="h-4 w-4" />
               Lihat Progres
             </button>
