@@ -71,7 +71,7 @@ const Dashboard = () => {
               Lihat Progres
             </button>
             <button
-              onClick={() => navigate("/dashboard-guru")}
+              onClick={() => navigate("/kelola-kelas")}
               className="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium opacity-80 transition hover:bg-white/10 hover:opacity-100 sm:flex"
             >
               <LayoutDashboard className="h-4 w-4" />
