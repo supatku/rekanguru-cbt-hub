@@ -265,13 +265,18 @@ const AdminKelolaSoal = () => {
 
                             <div className="space-y-1.5">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">Mata Pelajaran</Label>
-                                <Select value={filterMapel} onValueChange={setFilterMapel}>
-                                    <SelectTrigger className="w-full border-slate-200 sm:w-[200px]">
-                                        <SelectValue placeholder="Mapel" />
+                                <Select
+                                    value={filterMapel}
+                                    onValueChange={setFilterMapel}
+                                >
+                                    <SelectTrigger className="w-[180px] font-bold border-sky-100 bg-sky-50 text-sky-700">
+                                        <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="Matematika">Matematika</SelectItem>
                                         <SelectItem value="Bahasa Indonesia">Bahasa Indonesia</SelectItem>
+                                        <SelectItem value="Survei Karakter">Survei Karakter</SelectItem>
+                                        <SelectItem value="Sulingjar">Sulingjar</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -396,6 +401,8 @@ const AdminKelolaSoal = () => {
                                         <SelectContent>
                                             <SelectItem value="Matematika">Matematika</SelectItem>
                                             <SelectItem value="Bahasa Indonesia">Bahasa Indonesia</SelectItem>
+                                            <SelectItem value="Survei Karakter">Survei Karakter</SelectItem>
+                                            <SelectItem value="Sulingjar">Sulingjar</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -423,6 +430,7 @@ const AdminKelolaSoal = () => {
                                             <SelectItem value="PG_BIASA">PG BIASA</SelectItem>
                                             <SelectItem value="PG_KOMPLEKS">PG KOMPLEKS</SelectItem>
                                             <SelectItem value="BENAR_SALAH">BENAR SALAH</SelectItem>
+                                            <SelectItem value="SURVEI_LIKERT">SURVEI LIKERT</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -485,9 +493,16 @@ const AdminKelolaSoal = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Kunci Jawaban</Label>
+                                <Label>
+                                    Kunci Jawaban
+                                    {editingQuestion.tipe_soal === 'SURVEI_LIKERT' && (
+                                        <span className="ml-2 text-[10px] text-rose-500 font-bold uppercase">
+                                            Format Bobot: A:4,B:3,C:2,D:1
+                                        </span>
+                                    )}
+                                </Label>
                                 <Input
-                                    placeholder="Contoh: A (atau A,C untuk kompleks)"
+                                    placeholder={editingQuestion.tipe_soal === 'SURVEI_LIKERT' ? "A:4,B:3,C:2,D:1" : "Contoh: A (atau A,C untuk kompleks)"}
                                     value={editingQuestion.kunci_jawaban}
                                     onChange={(e) => setEditingQuestion({ ...editingQuestion, kunci_jawaban: e.target.value })}
                                 />

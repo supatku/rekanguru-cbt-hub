@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Users, TrendingUp, Trophy, Copy, RefreshCw, Download,
@@ -42,30 +42,61 @@ const DashboardGuru = () => {
   const [kelasData, setKelasData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchKelasData = async (kode: string) => {
-    if (!kode.trim()) return;
+  const fetchKelasData = async (inputKode: string) => {
+    const cleanKode = inputKode.trim().toUpperCase();
+    if (!cleanKode) {
+      toast.error("Masukkan kode kelas terlebih dahulu.");
+      return;
+    }
+
     setIsLoading(true);
+    console.log('--- Fetching data untuk kode:', cleanKode);
+
     try {
       const { data, error } = await supabase
         .from('tka_hasil_ujian')
         .select('*')
-        .eq('kode_kelas', kode.toUpperCase())
+        .eq('kode_kelas', cleanKode)
         .order('skor_total', { ascending: false });
 
+      console.log('--- Hasil fetch:', { data, error });
+
       if (error) throw error;
-      setKelasData(data || []);
-      setCurrentClass(kode.toUpperCase());
-      toast.success(`Data kelas ${kode} berhasil ditarik!`);
+
+      if (!data || data.length === 0) {
+        toast.info(`Belum ada data ujian untuk kode kelas: ${cleanKode}`);
+        setKelasData([]);
+        setCurrentClass(cleanKode);
+      } else {
+        setKelasData(data);
+        setCurrentClass(cleanKode);
+        localStorage.setItem("last_fetched_kode", cleanKode);
+        toast.success(`Data kelas ${cleanKode} berhasil ditarik!`);
+      }
     } catch (error: any) {
+      console.error('--- Error fetch:', error);
       toast.error("Gagal menarik data: " + error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    const savedKode = localStorage.getItem("last_fetched_kode");
+    if (savedKode) {
+      setKodeInput(savedKode);
+      fetchKelasData(savedKode);
+    }
+  }, []);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchKelasData(kodeInput);
+  };
+
   /* ─── Derived States ─── */
   const metrics = useMemo(() => {
-    if (kelasData.length === 0) return { avg: 0, high: 0, total: 0 };
+    if (!kelasData || kelasData.length === 0) return { avg: 0, high: 0, total: 0 };
     const total = kelasData.length;
     const sum = kelasData.reduce((acc, curr) => acc + (curr.skor_total || 0), 0);
     const high = Math.max(...kelasData.map(d => d.skor_total || 0));
@@ -73,6 +104,7 @@ const DashboardGuru = () => {
   }, [kelasData]);
 
   const rankedStudents = useMemo(() => {
+    if (!kelasData || kelasData.length === 0) return [];
     // Tie-breaker: skor_total DESC, then waktu_pengerjaan ASC
     return [...kelasData].sort((a, b) => {
       if (b.skor_total !== a.skor_total) return b.skor_total - a.skor_total;
@@ -81,9 +113,10 @@ const DashboardGuru = () => {
   }, [kelasData]);
 
   const chartData = useMemo(() => {
+    if (!rankedStudents || rankedStudents.length === 0) return [];
     return rankedStudents.slice(0, 5).map(s => ({
-      name: s.nama_siswa.split(" ").slice(0, 2).join("\n"),
-      score: s.skor_total
+      name: s.nama_siswa?.split(" ").slice(0, 2).join("\n") || "Siswa",
+      score: s.skor_total || 0
     }));
   }, [rankedStudents]);
 
@@ -97,7 +130,7 @@ const DashboardGuru = () => {
           <button onClick={() => navigate(-1)} className="rounded-lg p-2 transition hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="mr-auto">
+          <div className="mr-auto text-left">
             <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Dashboard Guru</h1>
             <p className="text-sm text-muted-foreground">
               {currentClass ? `Kelas ${currentClass}` : "Pilih kelas untuk melihat hasil"} • {kelasData.length} Hasil
@@ -105,21 +138,20 @@ const DashboardGuru = () => {
           </div>
 
           {/* Search Box */}
-          <div className="flex items-center gap-2">
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Kode Kelas..."
                 value={kodeInput}
-                onChange={(e) => setKodeInput(e.target.value.toUpperCase())}
-                className="w-[140px] pl-9 font-bold"
-                onKeyDown={(e) => e.key === 'Enter' && fetchKelasData(kodeInput)}
+                onChange={(e) => setKodeInput(e.target.value)}
+                className="w-[140px] pl-9 font-bold uppercase"
               />
             </div>
-            <Button onClick={() => fetchKelasData(kodeInput)} disabled={isLoading} className="bg-sky-600 font-bold hover:bg-sky-700">
+            <Button type="submit" disabled={isLoading} className="bg-sky-600 font-bold hover:bg-sky-700">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tarik Data"}
             </Button>
-          </div>
+          </form>
         </div>
       </header>
 
@@ -131,24 +163,24 @@ const DashboardGuru = () => {
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
               <Users className="h-6 w-6" />
             </div>
-            <p className="text-sm font-medium opacity-90">Total Siswa</p>
-            <p className="text-3xl font-extrabold">{metrics.total}</p>
+            <p className="text-sm font-medium opacity-90 text-left">Total Siswa</p>
+            <p className="text-3xl font-extrabold text-left">{metrics.total}</p>
           </div>
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
               <TrendingUp className="h-6 w-6" />
             </div>
-            <p className="text-sm font-medium opacity-90">Rata-rata Kelas</p>
-            <p className="text-3xl font-extrabold">{metrics.avg}%</p>
+            <p className="text-sm font-medium opacity-90 text-left">Rata-rata Kelas</p>
+            <p className="text-3xl font-extrabold text-left">{metrics.avg}%</p>
           </div>
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
               <Trophy className="h-6 w-6" />
             </div>
-            <p className="text-sm font-medium opacity-90">Skor Tertinggi</p>
-            <p className="text-3xl font-extrabold">{metrics.high}%</p>
+            <p className="text-sm font-medium opacity-90 text-left">Skor Tertinggi</p>
+            <p className="text-3xl font-extrabold text-left">{metrics.high}%</p>
           </div>
         </div>
 
@@ -183,7 +215,7 @@ const DashboardGuru = () => {
                     {rankedStudents.slice(0, 10).map((s, idx) => (
                       <div key={s.id} className="flex items-center gap-3 px-4 py-3 transition hover:bg-muted/50">
                         <RankIcon rank={idx + 1} />
-                        <span className="flex-1 text-sm font-semibold truncate">{s.nama_siswa}</span>
+                        <span className="flex-1 text-sm font-semibold truncate text-left">{s.nama_siswa}</span>
                         <span className={`text-sm font-bold ${scoreColor(s.skor_total)}`}>{s.skor_total}%</span>
                         <Badge variant="secondary" className="text-[10px] gap-1 px-1.5 py-0.5">
                           <Clock className="h-3 w-3" /> {formatDuration(s.waktu_pengerjaan)}
@@ -195,7 +227,8 @@ const DashboardGuru = () => {
               ) : (
                 <div className="flex h-64 flex-col items-center justify-center text-muted-foreground">
                   <Search className="h-10 w-10 opacity-20 mb-2" />
-                  <p>Tidak ada data untuk dibayangkan.</p>
+                  <p className="font-medium">Belum ada data untuk kode kelas ini.</p>
+                  <p className="text-xs opacity-70">Silakan tarik data menggunakan kode kelas yang benar.</p>
                 </div>
               )}
             </CardContent>
@@ -213,25 +246,25 @@ const DashboardGuru = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/50 text-left">
-                      <th className="px-4 py-3 font-semibold">Nama</th>
-                      <th className="px-4 py-3 font-semibold">Mapel & Paket</th>
-                      <th className="px-4 py-3 font-semibold">Skor</th>
-                      <th className="px-4 py-3 font-semibold">Durasi</th>
+                      <th className="px-4 py-3 font-semibold text-left">Nama</th>
+                      <th className="px-4 py-3 font-semibold text-left">Mapel & Paket</th>
+                      <th className="px-4 py-3 font-semibold text-left">Skor</th>
+                      <th className="px-4 py-3 font-semibold text-left">Durasi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {kelasData.length > 0 ? (
                       kelasData.slice(0, 8).map((h) => (
                         <tr key={h.id} className="transition hover:bg-muted/30">
-                          <td className="px-4 py-3 font-medium">{h.nama_siswa}</td>
-                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          <td className="px-4 py-3 font-medium text-left">{h.nama_siswa}</td>
+                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-left">
                             {h.mapel} (P{h.paket_ke})
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-left">
                             <span className={`font-bold ${scoreColor(h.skor_total)}`}>{h.skor_total}%</span>
                             <span className="ml-1 text-[10px] text-muted-foreground">({h.total_benar}/{h.total_soal})</span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-left">
                             <Badge variant="secondary" className="text-[10px] gap-1 px-1.5 py-0.5">
                               <Clock className="h-3 w-3" /> {formatDuration(h.waktu_pengerjaan)}
                             </Badge>
@@ -240,7 +273,9 @@ const DashboardGuru = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="h-32 text-center text-muted-foreground">Pilih kelas di header...</td>
+                        <td colSpan={4} className="h-32 text-center text-muted-foreground">
+                          {currentClass ? `Belum ada data untuk kelas ${currentClass}` : "Masukkan kode kelas di header..."}
+                        </td>
                       </tr>
                     )}
                   </tbody>

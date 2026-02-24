@@ -22,6 +22,26 @@ const subjects = [
     buttonClass: "bg-amber-400 hover:bg-amber-500",
     buttonLabel: "Mulai B. Indonesia",
   },
+  {
+    id: "karakter",
+    title: "Survei Karakter (Profil Pelajar)",
+    icon: "❤️",
+    soal: 20,
+    waktu: 30,
+    gradient: "from-purple-400 to-indigo-500",
+    buttonClass: "bg-pink-500 hover:bg-pink-600",
+    buttonLabel: "Mulai Survei",
+  },
+  {
+    id: "sulingjar",
+    title: "Survei Lingkungan Belajar (Sulingjar)",
+    icon: "🏫",
+    soal: 20,
+    waktu: 30,
+    gradient: "from-emerald-400 to-teal-500",
+    buttonClass: "bg-sky-500 hover:bg-sky-600",
+    buttonLabel: "Mulai Sulingjar",
+  },
 ];
 
 const petunjuk = [
