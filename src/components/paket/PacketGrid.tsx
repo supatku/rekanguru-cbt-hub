@@ -45,7 +45,7 @@ const PacketCard = ({ index, gradient, buttonColor, emoji, level }: PacketCardPr
 
       {/* CTA Button */}
       <button
-        onClick={() => navigate(`/exam/${level}/${index + 1}`)}
+        onClick={() => navigate(`/mapel/${level}/${index + 1}`)}
         className={`flex w-full items-center justify-center gap-1 rounded-full ${buttonColor} px-4 py-2 text-sm font-bold text-white shadow-md transition-all duration-200`}
       >
         Paket {index + 1}
