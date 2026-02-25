@@ -3,6 +3,7 @@ import heroIllustration from "@/assets/hero-illustration.png";
 import FeatureList from "@/components/landing/FeatureList";
 import LevelSelector from "@/components/landing/LevelSelector";
 import NoticeBox from "@/components/landing/NoticeBox";
+import { WhatsAppWidget } from "@/components/ui/WhatsAppWidget";
 
 const Index = () => {
   return (
@@ -76,6 +77,9 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      {/* WhatsApp Widget for Landing Page only */}
+      <WhatsAppWidget />
     </div>
   );
 };
