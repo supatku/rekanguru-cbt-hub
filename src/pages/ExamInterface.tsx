@@ -262,26 +262,89 @@ const ExamInterface = () => {
       const kodeKelasUpper = kodeKelas.trim().toUpperCase();
       const namaSiswaTrim = namaSiswa.trim();
       const paketNumber = parseInt(paket || '1', 10);
+      const activeLicenseCode = localStorage.getItem("active_license_code");
 
-      // Anti-Cheat: Check for existing submission
-      const { data: existing, error: checkError } = await supabase
+      console.log("--- SUBMIT START ---");
+      console.log("Step 1: License Code Check");
+      if (!activeLicenseCode) {
+        console.error("License code not found in localStorage");
+        toast.error("Kode lisensi tidak ditemukan. Silakan aktivasi ulang.");
+        setIsSubmitting(false);
+        return;
+      }
+      console.log("License code exists:", activeLicenseCode);
+
+      // 2. Anti-Cheat: Check if this exact submission exists
+      console.log("Step 2: Anti-Cheat Check");
+      const { data: existingSubmit, error: checkError } = await supabase
         .from('tka_hasil_ujian')
         .select('id')
         .eq('nama_siswa', namaSiswaTrim)
         .eq('kode_kelas', kodeKelasUpper)
         .eq('mapel', mapelLabel)
-        .eq('paket_ke', isNaN(paketNumber) ? 1 : paketNumber);
+        .eq('paket_ke', isNaN(paketNumber) ? 1 : paketNumber)
+        .eq('kode_lisensi', activeLicenseCode);
 
-      if (checkError) {
-        console.error('Error checking existing submission:', checkError.message);
-      }
-
-      if (existing && existing.length > 0) {
-        toast.error(`Maaf, nama ${namaSiswaTrim} sudah mengumpulkan ujian untuk kode kelas ini. Silakan gunakan nama lengkap jika ini adalah kesalahan.`);
+      if (existingSubmit && existingSubmit.length > 0) {
+        console.warn("Duplicate submission detected");
+        toast.error(`Anda sudah mengerjakan paket ini.`);
         setIsSubmitting(false);
         return;
       }
 
+      // 3. Check Siswa Status (Siswa Lama vs Siswa Baru)
+      console.log("Step 3: Student Status Check");
+      const { data: existingStudent, error: studentError } = await supabase
+        .from('tka_hasil_ujian')
+        .select('id')
+        .eq('nama_siswa', namaSiswaTrim)
+        .eq('kode_kelas', kodeKelasUpper)
+        .eq('kode_lisensi', activeLicenseCode);
+
+      const isNewStudent = !existingStudent || existingStudent.length === 0;
+      console.log("Is New Student:", isNewStudent);
+
+      if (isNewStudent) {
+        // 4. B. SISWA BARU: Fetch real-time quota and increment
+        console.log("Processing as NEW student. Fetching quota...");
+        const { data: licenseData, error: licenseError } = await supabase
+          .from('tka_lisensi')
+          .select('terpakai, batas_kuota')
+          .eq('kode', activeLicenseCode)
+          .single();
+
+        if (licenseError || !licenseData) {
+          console.error("License not found in database:", licenseError);
+          toast.error("Lisensi tidak valid. Hubungi admin.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        console.log(`Current Quota: ${licenseData.terpakai} / ${licenseData.batas_kuota}`);
+
+        if (licenseData.terpakai >= licenseData.batas_kuota) {
+          console.warn("Quota reached limit");
+          toast.error("Kuota aktivasi telah mencapai batas. Hubungi admin.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        console.log("Step 4: Incrementing Quota...");
+        const { error: updateError } = await supabase
+          .from('tka_lisensi')
+          .update({ terpakai: licenseData.terpakai + 1 })
+          .eq('kode', activeLicenseCode);
+
+        if (updateError) {
+          console.error("Failed to increment quota:", updateError);
+          throw new Error("Gagal mengupdate kuota.");
+        }
+        console.log("Quota increment success.");
+      } else {
+        console.log("Processing as RETURNING student. Skipping quota check.");
+      }
+
+      console.log("Proceeding to exam scoring...");
       let correctCount = 0;
       let totalEarnedScore = 0;
       const incorrectByTopic: Record<string, number[]> = {};
@@ -337,6 +400,7 @@ const ExamInterface = () => {
       }
       const waktuPengerjaan = (isSurvey ? 1800 : 3600) - seconds;
 
+      console.log("Step 5: Final Results Insertion");
       const { error } = await supabase
         .from('tka_hasil_ujian')
         .insert([{
@@ -348,10 +412,16 @@ const ExamInterface = () => {
           skor_total: Number(score),
           waktu_pengerjaan: Number(waktuPengerjaan),
           total_benar: Number(correctCount),
-          total_soal: Number(questions.length)
+          total_soal: Number(questions.length),
+          kode_lisensi: activeLicenseCode
         }]);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Result insertion failed:", error);
+        throw error;
+      }
+
+      console.log("Submission COMPLETE. Showing results.");
 
       setFinalResult({
         score,

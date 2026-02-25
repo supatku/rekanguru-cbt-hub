@@ -1,10 +1,18 @@
 import { useNavigate, useParams } from "react-router-dom";
+import { useEffect } from "react";
 import { BookOpenCheck, School, UserRound, GraduationCap, RefreshCw, BarChart3, LayoutDashboard, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { jenjang } = useParams<{ jenjang: string }>();
+
+  useEffect(() => {
+    const activeCode = localStorage.getItem("active_license_code");
+    if (!activeCode) {
+      navigate("/");
+    }
+  }, [navigate]);
 
   const jenjangNormalized = jenjang?.toLowerCase() || "sd";
   const isSD = jenjangNormalized === "sd";

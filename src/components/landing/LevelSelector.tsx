@@ -36,14 +36,14 @@ const LevelSelector = () => {
         title="SD / MI"
         subtitle="Sekolah Dasar / Madrasah Ibtidaiyah"
         delay={0.4}
-        onClick={() => navigate("/dashboard/sd")}
+        onClick={() => navigate("/activate/sd")}
       />
       <LevelCard
         icon={<GraduationCap className="h-6 w-6" />}
         title="SMP / MTs"
         subtitle="Sekolah Menengah Pertama / Madrasah Tsanawiyah"
         delay={0.55}
-        onClick={() => navigate("/dashboard/smp")}
+        onClick={() => navigate("/activate/smp")}
       />
     </div>
   );

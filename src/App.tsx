@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import DashboardGuru from "./pages/DashboardGuru";
+import ActivationGate from "./pages/ActivationGate";
 import KelolaKelas from "./pages/KelolaKelas";
 import PilihPaket from "./pages/PilihPaket";
 import PilihMapel from "./pages/PilihMapel";
@@ -24,6 +25,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/activate/:jenjang" element={<ActivationGate />} />
           <Route path="/dashboard/:jenjang" element={<Dashboard />} />
           <Route path="/kelola-kelas" element={<KelolaKelas />} />
           <Route path="/dashboard-guru" element={<DashboardGuru />} />
