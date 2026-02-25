@@ -94,6 +94,53 @@ const DashboardGuru = () => {
     fetchKelasData(kodeInput);
   };
 
+  const exportToCSV = () => {
+    if (!rankedStudents || rankedStudents.length === 0) {
+      toast.error("Tidak ada data untuk diekspor.");
+      return;
+    }
+
+    const headers = [
+      "Peringkat",
+      "Nama Siswa",
+      "Mata Pelajaran",
+      "Paket",
+      "Skor (%)",
+      "Total Benar",
+      "Total Soal",
+      "Waktu Pengerjaan",
+    ];
+
+    const rows = rankedStudents.map((s, idx) => [
+      idx + 1,
+      s.nama_siswa,
+      s.mapel,
+      `Paket ${s.paket_ke}`,
+      s.skor_total,
+      s.total_benar,
+      s.total_soal,
+      formatDuration(s.waktu_pengerjaan),
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Hasil_Ujian_${currentClass || "Kelas"}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("File CSV berhasil diunduh!");
+  };
+
   /* ─── Derived States ─── */
   const metrics = useMemo(() => {
     if (!kelasData || kelasData.length === 0) return { avg: 0, high: 0, total: 0 };
@@ -151,6 +198,18 @@ const DashboardGuru = () => {
             <Button type="submit" disabled={isLoading} className="bg-sky-600 font-bold hover:bg-sky-700">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tarik Data"}
             </Button>
+
+            {kelasData.length > 0 && (
+              <Button
+                type="button"
+                onClick={exportToCSV}
+                variant="outline"
+                className="border-emerald-500 text-emerald-600 font-bold hover:bg-emerald-50"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download CSV
+              </Button>
+            )}
           </form>
         </div>
       </header>

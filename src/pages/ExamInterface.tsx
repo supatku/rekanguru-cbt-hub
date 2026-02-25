@@ -259,6 +259,29 @@ const ExamInterface = () => {
     setIsSubmitting(true);
 
     try {
+      const kodeKelasUpper = kodeKelas.trim().toUpperCase();
+      const namaSiswaTrim = namaSiswa.trim();
+      const paketNumber = parseInt(paket || '1', 10);
+
+      // Anti-Cheat: Check for existing submission
+      const { data: existing, error: checkError } = await supabase
+        .from('tka_hasil_ujian')
+        .select('id')
+        .eq('nama_siswa', namaSiswaTrim)
+        .eq('kode_kelas', kodeKelasUpper)
+        .eq('mapel', mapelLabel)
+        .eq('paket_ke', isNaN(paketNumber) ? 1 : paketNumber);
+
+      if (checkError) {
+        console.error('Error checking existing submission:', checkError.message);
+      }
+
+      if (existing && existing.length > 0) {
+        toast.error(`Maaf, nama ${namaSiswaTrim} sudah mengumpulkan ujian untuk kode kelas ini. Silakan gunakan nama lengkap jika ini adalah kesalahan.`);
+        setIsSubmitting(false);
+        return;
+      }
+
       let correctCount = 0;
       let totalEarnedScore = 0;
       const incorrectByTopic: Record<string, number[]> = {};
@@ -313,13 +336,12 @@ const ExamInterface = () => {
         score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
       }
       const waktuPengerjaan = (isSurvey ? 1800 : 3600) - seconds;
-      const paketNumber = parseInt(paket || '1', 10);
 
       const { error } = await supabase
         .from('tka_hasil_ujian')
         .insert([{
-          kode_kelas: kodeKelas.toUpperCase(),
-          nama_siswa: namaSiswa,
+          kode_kelas: kodeKelasUpper,
+          nama_siswa: namaSiswaTrim,
           jenjang: level?.toUpperCase(),
           paket_ke: isNaN(paketNumber) ? 1 : paketNumber,
           mapel: mapelLabel,
