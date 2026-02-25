@@ -16,7 +16,7 @@ export function WhatsAppWidget() {
   };
 
   const handleChat = () => {
-    const message = encodeURIComponent("Halo, saya butuh bantuan terkait CertiGen Pro.");
+    const message = encodeURIComponent("Halo, saya butuh bantuan terkait aktivasi kode lisensi.");
     window.open(`https://wa.me/${contact.number}?text=${message}`, '_blank');
   };
 
