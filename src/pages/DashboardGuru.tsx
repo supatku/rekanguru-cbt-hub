@@ -143,11 +143,12 @@ const DashboardGuru = () => {
 
   /* ─── Derived States ─── */
   const metrics = useMemo(() => {
-    if (!kelasData || kelasData.length === 0) return { avg: 0, high: 0, total: 0 };
+    if (!kelasData || kelasData.length === 0) return { avg: 0, high: 0, total: 0, totalUnique: 0 };
     const total = kelasData.length;
     const sum = kelasData.reduce((acc, curr) => acc + (curr.skor_total || 0), 0);
     const high = Math.max(...kelasData.map(d => d.skor_total || 0));
-    return { avg: Math.round(sum / total), high, total };
+    const totalUnique = new Set(kelasData.map(item => item.nama_siswa.toLowerCase().trim())).size;
+    return { avg: Math.round(sum / total), high, total, totalUnique };
   }, [kelasData]);
 
   const rankedStudents = useMemo(() => {
@@ -223,7 +224,7 @@ const DashboardGuru = () => {
               <Users className="h-6 w-6" />
             </div>
             <p className="text-sm font-medium opacity-90 text-left">Total Siswa</p>
-            <p className="text-3xl font-extrabold text-left">{metrics.total}</p>
+            <p className="text-3xl font-extrabold text-left">{metrics.totalUnique}</p>
           </div>
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
