@@ -1,50 +1,56 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { BookOpenCheck, School, UserRound, GraduationCap, RefreshCw, BarChart3, LayoutDashboard, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-const testCards = [
-  {
-    id: "tka",
-    icon: School,
-    title: "TKA SD/MI",
-    subtitle: "Tes Kemampuan Akademik",
-    description: "Soal Matematika dan Bahasa Indonesia untuk siswa Sekolah Dasar",
-    gradient: "from-sky-500 to-blue-600",
-    iconBg: "bg-sky-100 text-sky-600",
-  },
-  {
-    id: "survei_karakter",
-    icon: UserRound,
-    title: "Survei Karakter",
-    subtitle: "Profil Lulusan",
-    description: "Mengukur sikap, nilai, keyakinan, dan kebiasaan yang mencerminkan karakter siswa",
-    gradient: "from-violet-500 to-purple-600",
-    iconBg: "bg-violet-100 text-violet-600",
-  },
-  {
-    id: "sulingjar",
-    icon: GraduationCap,
-    title: "Survei Lingkungan Belajar",
-    subtitle: "Sulingjar",
-    description: "Mengukur kualitas berbagai aspek input dan proses belajar-mengajar di sekolah",
-    gradient: "from-emerald-500 to-teal-600",
-    iconBg: "bg-emerald-100 text-emerald-600",
-  },
-];
-
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { jenjang } = useParams<{ jenjang: string }>();
+
+  const jenjangNormalized = jenjang?.toLowerCase() || "sd";
+  const isSD = jenjangNormalized === "sd";
+  const levelLabel = isSD ? "SD/MI" : "SMP/MTs";
+  const studentLevel = isSD ? "Sekolah Dasar" : "Sekolah Menengah Pertama";
+
+  const testCards = [
+    {
+      id: "tka",
+      icon: School,
+      title: `TKA ${levelLabel}`,
+      subtitle: "Tes Kemampuan Akademik",
+      description: `Soal Matematika dan Bahasa Indonesia untuk siswa ${studentLevel}`,
+      gradient: "from-sky-500 to-blue-600",
+      iconBg: "bg-sky-100 text-sky-600",
+    },
+    {
+      id: "survei_karakter",
+      icon: UserRound,
+      title: "Survei Karakter",
+      subtitle: "Profil Lulusan",
+      description: "Mengukur sikap, nilai, keyakinan, dan kebiasaan yang mencerminkan karakter siswa",
+      gradient: "from-violet-500 to-purple-600",
+      iconBg: "bg-violet-100 text-violet-600",
+    },
+    {
+      id: "sulingjar",
+      icon: GraduationCap,
+      title: "Survei Lingkungan Belajar",
+      subtitle: "Sulingjar",
+      description: "Mengukur kualitas berbagai aspek input dan proses belajar-mengajar di sekolah",
+      gradient: "from-emerald-500 to-teal-600",
+      iconBg: "bg-emerald-100 text-emerald-600",
+    },
+  ];
 
   const handleCardClick = (type: string) => {
     switch (type) {
       case "tka":
-        navigate("/paket/sd");
+        navigate(`/paket/${jenjangNormalized}`);
         break;
       case "survei_karakter":
-        navigate("/exam/sd/survei/karakter?type=survei_karakter");
+        navigate(`/exam/${jenjangNormalized}/survei/karakter?type=survei_karakter`);
         break;
       case "sulingjar":
-        navigate("/exam/sd/survei/sulingjar?type=sulingjar");
+        navigate(`/exam/${jenjangNormalized}/survei/sulingjar?type=sulingjar`);
         break;
     }
   };
@@ -86,7 +92,7 @@ const Dashboard = () => {
         {/* Hero content */}
         <div className="mx-auto mt-10 max-w-5xl text-center">
           <Badge className="mb-4 bg-white/15 text-white border-white/20 backdrop-blur-sm px-3 py-1 text-xs font-semibold">
-            SD/MI
+            {levelLabel}
           </Badge>
           <h1 className="text-2xl font-extrabold leading-tight sm:text-3xl">
             Pilih jenis tes atau survei yang ingin dikerjakan

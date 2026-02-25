@@ -19,6 +19,10 @@ import {
   LayoutPanelLeft,
   Info,
   Trophy,
+  Calculator,
+  BookText,
+  Building,
+  FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,6 +80,51 @@ const ExamInterface = () => {
 
   const isSulingjar = mapelLabel === "Sulingjar";
   const isSurvey = mapelLabel === "Survei Karakter" || isSulingjar;
+
+  const subjectTheme = useMemo(() => {
+    const label = mapelLabel.toLowerCase().trim();
+
+    if (label.includes("matematika")) {
+      return {
+        icon: Calculator,
+        headerBg: "bg-blue-500 shadow-blue-500/20",
+        optionSelected: "border-blue-500 bg-blue-50/30",
+        numberSelected: "bg-blue-500 border-blue-500 text-white"
+      };
+    }
+    if (label.includes("bahasa") || label.includes("membaca")) {
+      return {
+        icon: BookText,
+        headerBg: "bg-indigo-500 shadow-indigo-500/20",
+        optionSelected: "border-indigo-500 bg-indigo-50/30",
+        numberSelected: "bg-indigo-500 border-indigo-500 text-white"
+      };
+    }
+    if (label.includes("karakter")) {
+      return {
+        icon: Heart,
+        headerBg: "bg-rose-500 shadow-rose-500/20",
+        optionSelected: "border-rose-400 bg-rose-50",
+        numberSelected: "bg-rose-500 border-rose-500 text-white"
+      };
+    }
+    if (label.includes("lingkungan") || label.includes("sulingjar")) {
+      return {
+        icon: Building,
+        headerBg: "bg-emerald-500 shadow-emerald-500/20",
+        optionSelected: "border-emerald-500 bg-emerald-50",
+        numberSelected: "bg-emerald-500 border-emerald-500 text-white"
+      };
+    }
+
+    // Fallback Safeguard
+    return {
+      icon: FileText,
+      headerBg: "bg-slate-500 shadow-slate-500/20",
+      optionSelected: "border-slate-400 bg-slate-50",
+      numberSelected: "bg-slate-500 border-slate-500 text-white"
+    };
+  }, [mapelLabel]);
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -490,13 +539,8 @@ const ExamInterface = () => {
           </button>
 
           <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg shadow-lg ${isSulingjar ? "bg-emerald-500 shadow-emerald-500/20" : "bg-pink-500 shadow-pink-500/20"
-              }`}>
-              {isSulingjar ? (
-                <BookIcon className="h-6 w-6 text-white" />
-              ) : (
-                <Heart className="h-6 w-6 text-white fill-current" />
-              )}
+            <div className={`flex h-10 w-10 items-center justify-center rounded-lg shadow-lg ${subjectTheme.headerBg}`}>
+              <subjectTheme.icon className="h-6 w-6 text-white" />
             </div>
             <div className="flex flex-col">
               <h1 className="text-base font-bold leading-tight">
@@ -594,11 +638,6 @@ const ExamInterface = () => {
                   </p>
                 </div>
 
-                {/* Question Prompt */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-bold text-slate-800">Apa yang akan kamu lakukan?</h3>
-                </div>
-
                 {/* Options List */}
                 <div className="space-y-3">
                   {question.tipe_soal === "BENAR_SALAH" ? (
@@ -644,12 +683,12 @@ const ExamInterface = () => {
                           key={opt.key}
                           onClick={() => handleAnswer(currentIndex, opt.key)}
                           className={`group flex items-center gap-4 w-full rounded-xl border p-4 text-left transition-all ${isSelected
-                            ? (isSulingjar ? "border-emerald-500 bg-emerald-50" : isSurvey ? "border-rose-400 bg-rose-50" : "border-blue-500 bg-blue-50/30")
+                            ? subjectTheme.optionSelected
                             : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
                             }`}
                         >
                           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-all ${isSelected
-                            ? (isSulingjar ? "bg-emerald-500 border-emerald-500 text-white" : isSurvey ? "bg-rose-500 border-rose-500 text-white" : "bg-blue-500 border-blue-500 text-white")
+                            ? subjectTheme.numberSelected
                             : "bg-slate-50 border-slate-200 text-slate-400 group-hover:border-blue-200"
                             }`}>
                             {opt.key}

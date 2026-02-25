@@ -24,7 +24,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/:jenjang" element={<Dashboard />} />
           <Route path="/kelola-kelas" element={<KelolaKelas />} />
           <Route path="/dashboard-guru" element={<DashboardGuru />} />
           <Route path="/paket/:level" element={<PilihPaket />} />
