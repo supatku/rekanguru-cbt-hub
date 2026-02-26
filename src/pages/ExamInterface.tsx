@@ -695,39 +695,59 @@ const ExamInterface = () => {
               {/* Question Card */}
               <div className="relative flex-1 rounded-xl bg-white p-8 shadow-sm border border-slate-200/60 transition-all">
                 {/* Header Card */}
-                <div className="mb-8 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center justify-center rounded-lg bg-pink-50 px-4 py-1.5 text-sm font-bold text-pink-600">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="bg-pink-100 text-pink-600 font-bold px-4 py-1.5 rounded-full text-sm">
                       Soal {currentIndex + 1}
                     </span>
-                    <span className="text-sm font-bold text-slate-400">dari {TOTAL_QUESTIONS}</span>
+                    <span className="text-gray-500 text-sm ml-3">dari {TOTAL_QUESTIONS}</span>
                   </div>
 
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={toggleFlag}
-                    className={`h-10 rounded-lg px-4 text-sm font-bold transition-all ${flagged.has(currentIndex)
-                      ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
-                      : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                    className={`flex items-center gap-2 text-gray-600 rounded-lg border transition-all ${flagged.has(currentIndex)
+                      ? "bg-amber-50 border-amber-200 text-amber-600"
+                      : "border-gray-200 hover:bg-gray-50"
                       }`}
                   >
-                    <Flag className={`mr-2 h-4 w-4 ${flagged.has(currentIndex) ? "fill-current" : ""}`} />
+                    <Flag className={`h-4 w-4 ${flagged.has(currentIndex) ? "fill-current" : ""}`} />
                     Tandai
                   </Button>
                 </div>
 
-                {/* Scenario / Illustration */}
-                <div className="mb-8 rounded-xl bg-[#f0f7ff] border border-blue-100/50 p-6">
-                  {question.link_gambar && (
-                    <img
-                      src={question.link_gambar}
-                      alt="Ilustrasi"
-                      className="mb-6 w-full max-h-64 rounded-xl object-contain bg-white shadow-sm"
-                    />
-                  )}
-                  <p className="text-[15px] font-medium leading-relaxed text-slate-600">
-                    {question.teks_soal}
-                  </p>
+                {/* Kotak Konteks / Pertanyaan Utama */}
+                <div className="space-y-6">
+                  {(() => {
+                    const questionParts = question.teks_soal.split(/\n\n+/);
+                    const contextText = questionParts[0];
+                    const coreQuestionText = questionParts.slice(1).join('\n\n');
+
+                    return (
+                      <>
+                        <div className="bg-blue-50 border border-blue-100 text-gray-800 p-5 rounded-xl text-base leading-relaxed shadow-sm">
+                          {question.link_gambar && (
+                            <div className="mb-4 bg-white rounded-lg p-2 border border-blue-50/50 shadow-sm overflow-hidden">
+                              <img
+                                src={question.link_gambar}
+                                alt="Ilustrasi Soal"
+                                className="w-full max-h-64 object-contain mx-auto"
+                              />
+                            </div>
+                          )}
+                          <p className="font-medium">
+                            {contextText}
+                          </p>
+                        </div>
+
+                        {coreQuestionText && (
+                          <p className="text-gray-900 font-bold text-lg leading-snug">
+                            {coreQuestionText}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Options List */}
@@ -738,23 +758,23 @@ const ExamInterface = () => {
                         ? answers[currentIndex] as Record<string, string>
                         : {};
                       return (
-                        <div key={opt.key} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-blue-400">
-                          <p className="mb-4 text-sm font-bold text-slate-700">{opt.label}</p>
+                        <div key={opt.key} className="p-4 mb-3 border border-gray-200 rounded-2xl bg-white shadow-sm transition-all hover:bg-gray-50">
+                          <p className="mb-4 text-sm font-bold text-gray-700">{opt.label}</p>
                           <div className="grid grid-cols-2 gap-3">
                             <button
                               onClick={() => handleAnswer(currentIndex, `${opt.key}:B`)}
-                              className={`flex h-11 items-center justify-center rounded-lg text-sm font-bold transition-all ${sMap[opt.key] === "B"
+                              className={`flex h-11 items-center justify-center rounded-xl text-sm font-bold transition-all ${sMap[opt.key] === "B"
                                 ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                                 }`}
                             >
                               Benar
                             </button>
                             <button
                               onClick={() => handleAnswer(currentIndex, `${opt.key}:S`)}
-                              className={`flex h-11 items-center justify-center rounded-lg text-sm font-bold transition-all ${sMap[opt.key] === "S"
+                              className={`flex h-11 items-center justify-center rounded-xl text-sm font-bold transition-all ${sMap[opt.key] === "S"
                                 ? "bg-rose-500 text-white shadow-md shadow-rose-500/20"
-                                : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                                 }`}
                             >
                               Salah
@@ -774,20 +794,20 @@ const ExamInterface = () => {
                         <button
                           key={opt.key}
                           onClick={() => handleAnswer(currentIndex, opt.key)}
-                          className={`group flex items-center gap-4 w-full rounded-xl border p-4 text-left transition-all ${isSelected
-                            ? subjectTheme.optionSelected
-                            : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
+                          className={`flex items-center w-full text-left p-4 mb-3 border rounded-2xl cursor-pointer transition-all duration-200 ${isSelected
+                            ? "border-blue-500 bg-blue-50 shadow-sm"
+                            : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
                             }`}
                         >
-                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-all ${isSelected
-                            ? subjectTheme.numberSelected
-                            : "bg-slate-50 border-slate-200 text-slate-400 group-hover:border-blue-200"
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mr-4 shrink-0 transition-all ${isSelected
+                            ? "bg-blue-500 text-white shadow-md shadow-blue-200"
+                            : "bg-gray-100 text-gray-600"
                             }`}>
                             {opt.key}
                           </div>
-                          <p className={`text-[15px] font-medium leading-tight ${isSelected
-                            ? (isSulingjar ? "text-emerald-700" : isSurvey ? "text-rose-900" : "text-blue-900")
-                            : "text-slate-600 group-hover:text-slate-800"
+                          <p className={`text-sm md:text-base font-medium leading-relaxed ${isSelected
+                            ? "text-blue-900"
+                            : "text-gray-700"
                             }`}>
                             {opt.label}
                           </p>

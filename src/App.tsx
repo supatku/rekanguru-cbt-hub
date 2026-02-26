@@ -13,6 +13,7 @@ import PilihMapel from "./pages/PilihMapel";
 import ExamInterface from "./pages/ExamInterface";
 import StudentProgress from "./pages/StudentProgress";
 import AdminKelolaSoal from "./pages/AdminKelolaSoal";
+import DetailSiswa from "./pages/DetailSiswa";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/dashboard/:jenjang" element={<Dashboard />} />
           <Route path="/kelola-kelas" element={<KelolaKelas />} />
           <Route path="/dashboard-guru" element={<DashboardGuru />} />
+          <Route path="/dashboard/:jenjang/siswa/:namaSiswa" element={<DetailSiswa />} />
           <Route path="/paket/:level" element={<PilihPaket />} />
           <Route path="/mapel/:level/:paket" element={<PilihMapel />} />
           <Route path="/exam/:level/:paket/:mapel" element={<ExamInterface />} />
