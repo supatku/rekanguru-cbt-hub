@@ -156,6 +156,7 @@ const ExamInterface = () => {
   const [showResults, setShowResults] = useState(false);
   const [showAnswerKey, setShowAnswerKey] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [finalResult, setFinalResult] = useState<{
     score: number;
     correct: number;
@@ -196,7 +197,6 @@ const ExamInterface = () => {
   const TOTAL_QUESTIONS = questions.length;
   const question = questions[currentIndex];
 
-  /* ── Timer ── */
   useEffect(() => {
     const id = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(id);
@@ -325,6 +325,14 @@ const ExamInterface = () => {
     setFinalResult(results);
     setShowResults(true);
   }, [calculateResults]);
+
+  // Auto-submit when timer hits 0 (bypasses confirmation modal)
+  useEffect(() => {
+    if (seconds === 0 && !showResults) {
+      toast.warning("Waktu habis! Ujian otomatis dikirim.");
+      handleSubmit();
+    }
+  }, [seconds, showResults, handleSubmit]);
 
   const handleFinalSubmit = async () => {
     if (!namaSiswa.trim() || !kodeKelas.trim()) {
@@ -698,177 +706,248 @@ const ExamInterface = () => {
     }
 
     // ─── EXAM REGULAR: Comprehensive Results UI ───
-    // Dummy analytics data for visualization
-    const topikPerformance = [
-      { nama: 'Operasi Pecahan', persen: 0 },
-      { nama: 'Satuan Volume', persen: 33 },
-      { nama: 'Kecepatan', persen: 50 },
-      { nama: 'Sudut & Pengukuran', persen: 67 },
-      { nama: 'KPK & FPB', persen: 80 },
-      { nama: 'Piktogram & Diagram', persen: 100 },
-    ];
-    const materiKuat = [
-      { nama: 'Visualisasi Spasial', benar: 1, total: 1, persen: 100 },
-      { nama: 'Diagram Batang', benar: 1, total: 1, persen: 100 },
-      { nama: 'Prediksi Data', benar: 1, total: 1, persen: 100 },
-      { nama: 'Piktogram', benar: 1, total: 1, persen: 100 },
-    ];
-    const materiLemah = [
-      { nama: 'Pecahan Senilai', benar: 0, total: 1, persen: 0 },
-      { nama: 'Perbandingan Pecahan', benar: 0, total: 1, persen: 0 },
-      { nama: 'Relasi Pecahan', benar: 0, total: 1, persen: 0 },
-    ];
+    // Dynamic topic grouping from real questions/answers
+    const topicStats: Record<string, { benar: number; total: number }> = {};
+    questions.forEach((q, idx) => {
+      const topic = q.topik || 'Materi Umum';
+      if (!topicStats[topic]) topicStats[topic] = { benar: 0, total: 0 };
+      topicStats[topic].total++;
+      const studentAns = answers[idx];
+      const correctAns = q.kunci_jawaban || '';
+      let isCorrect = false;
+      if (q.tipe_soal === 'BENAR_SALAH') {
+        const sm = (typeof studentAns === 'object' && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
+        const cp = correctAns.split(',').map(v => v.trim());
+        let ok = cp.length > 0;
+        cp.forEach(p => { const [k, v] = p.split(':'); if (sm[k] !== v) ok = false; });
+        isCorrect = ok;
+      } else if (q.tipe_soal === 'PG_KOMPLEKS') {
+        const sa = Array.isArray(studentAns) ? [...studentAns].sort() : [];
+        const ca = correctAns.split(',').map(v => v.trim()).sort();
+        isCorrect = sa.length > 0 && sa.join(',') === ca.join(',');
+      } else {
+        isCorrect = studentAns === correctAns;
+      }
+      if (isCorrect) topicStats[topic].benar++;
+    });
+
+    const topikPerformance = Object.entries(topicStats).map(([nama, d]) => ({
+      nama,
+      benar: d.benar,
+      total: d.total,
+      persen: d.total > 0 ? Math.round((d.benar / d.total) * 100) : 0,
+    }));
+    const materiKuat = topikPerformance.filter(t => t.persen >= 60).sort((a, b) => b.persen - a.persen);
+    const materiLemah = topikPerformance.filter(t => t.persen < 60).sort((a, b) => a.persen - b.persen);
 
     const waktuDipakai = (isSurvey ? 1800 : 3600) - seconds;
     const menit = Math.floor(waktuDipakai / 60);
     const detik = waktuDipakai % 60;
 
+    // SVG ring
+    const ringRadius = 70;
+    const ringCircumference = 2 * Math.PI * ringRadius;
+    const ringOffset = ringCircumference - (accuracy / 100) * ringCircumference;
+    const ringColor = accuracy >= 80 ? '#10b981' : accuracy >= 60 ? '#f59e0b' : '#ef4444';
+    const gradeDescription = accuracy >= 80 ? 'Sangat Bagus' : accuracy >= 60 ? 'Bagus' : accuracy >= 40 ? 'Perlu Perbaikan' : 'Perlu Perbaikan';
+
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50/30 pb-10">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50/50 to-slate-50 pb-10">
         {/* ── Header ── */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100 shadow-sm">
-          <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 h-16">
-            <button onClick={() => navigate(-1)} className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-lg font-black text-slate-900 leading-tight">Hasil Ujian</h1>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Paket {paket} - {mapelLabel}</p>
-            </div>
+        <header className="pt-10 pb-6 text-center">
+          <div className="mx-auto w-16 h-16 bg-orange-400 rounded-full flex items-center justify-center shadow-lg shadow-orange-200 mb-4">
+            <Trophy className="text-white w-8 h-8" />
           </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Hasil Ujian</h1>
+          <p className="text-gray-400 font-bold text-sm mt-1">Paket {paket} - {mapelLabel}</p>
         </header>
 
-        <main className="max-w-5xl mx-auto px-4 pt-8 space-y-8">
-          {/* ── Score Card ── */}
-          <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 text-center space-y-6">
-            <div className={`text-8xl font-black tracking-tighter ${performanceColor}`}>
-              {accuracy}%
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
-                <CheckCircle2 className="w-4 h-4" /> {finalResult.correct} Benar
-              </Badge>
-              <Badge className="bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
-                <XCircle className="w-4 h-4" /> {finalResult.wrong} Salah
-              </Badge>
-              <Badge className="bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
-                <LayoutPanelLeft className="w-4 h-4" /> {finalResult.total} Total
-              </Badge>
-              <Badge className="bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
-                <Clock className="w-4 h-4" /> {menit}m {detik}s
-              </Badge>
-            </div>
-          </div>
+        <main className="max-w-6xl mx-auto px-4 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* ── Performa per Topik ── */}
-          <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500">
-                <BarChart3 className="w-6 h-6" />
-              </div>
-              <h2 className="text-lg font-black text-slate-800">Performa per Topik</h2>
-            </div>
-            <div className="space-y-4">
-              {topikPerformance.sort((a, b) => a.persen - b.persen).map((t, i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-500">{t.nama}</span>
-                    <span className="text-xs font-black text-slate-700">{t.persen}%</span>
-                  </div>
-                  <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-400 transition-all duration-1000 ease-out"
-                      style={{ width: `${Math.max(t.persen, 2)}%` }}
+            {/* ═══ Left Column ═══ */}
+            <div className="space-y-6">
+              {/* Score Card */}
+              <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center">
+                {/* Grade Letter */}
+                <span className={`text-7xl font-black tracking-tighter ${performanceColor}`}>
+                  {gradeLetter}
+                </span>
+                <p className="text-slate-400 font-bold text-sm mt-1 mb-6">{gradeDescription}</p>
+
+                {/* Circular Progress Ring */}
+                <div className="relative w-44 h-44 mb-6">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+                    <circle cx="80" cy="80" r={ringRadius} fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                    <circle
+                      cx="80" cy="80" r={ringRadius} fill="none"
+                      stroke={ringColor} strokeWidth="12" strokeLinecap="round"
+                      strokeDasharray={ringCircumference} strokeDashoffset={ringOffset}
+                      className="transition-all duration-1000 ease-out"
                     />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-3xl font-black text-slate-800">{accuracy}%</span>
                   </div>
                 </div>
-              ))}
-            </div>
-            <div className="flex justify-between items-center mt-4 text-[10px] font-black text-slate-300 uppercase tracking-widest">
-              <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
-            </div>
-          </div>
 
-          {/* ── Split Card: Materi Kuat vs Lemah ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Materi Kuat */}
-            <div className="bg-white rounded-[28px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-4 flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-white" />
-                <h3 className="text-white font-black text-sm uppercase tracking-wider">Materi Kuat</h3>
-              </div>
-              <div className="p-6 space-y-4">
-                {materiKuat.map((m, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-none">
-                    <span className="text-sm font-bold text-slate-700">{m.nama}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-slate-400">{m.benar}/{m.total}</span>
-                      <Badge className="bg-emerald-50 text-emerald-600 border-none hover:bg-emerald-50 font-black text-xs">{m.persen}%</Badge>
+                {/* Stat Boxes */}
+                <div className="grid grid-cols-3 gap-3 w-full">
+                  <div className="bg-emerald-50 rounded-2xl p-4 flex flex-col items-center">
+                    <div className="flex items-center gap-1 mb-1">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span className="text-2xl font-black text-emerald-600">{finalResult.correct}</span>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Benar</p>
                   </div>
-                ))}
+                  <div className="bg-rose-50 rounded-2xl p-4 flex flex-col items-center">
+                    <div className="flex items-center gap-1 mb-1">
+                      <XCircle className="w-4 h-4 text-rose-500" />
+                      <span className="text-2xl font-black text-rose-500">{finalResult.wrong}</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Salah</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-2xl p-4 flex flex-col items-center">
+                    <div className="flex items-center gap-1 mb-1">
+                      <LayoutPanelLeft className="w-4 h-4 text-blue-500" />
+                      <span className="text-2xl font-black text-blue-600">{finalResult.total}</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performa per Topik */}
+              <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500">
+                    <BarChart3 className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-lg font-black text-slate-800">Performa per Topik</h2>
+                </div>
+                <div className="space-y-4">
+                  {topikPerformance.sort((a, b) => a.persen - b.persen).map((t, i) => {
+                    const barColor = t.persen >= 80 ? 'bg-emerald-400' : t.persen >= 50 ? 'bg-amber-400' : 'bg-rose-400';
+                    return (
+                      <div key={i} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-500 truncate max-w-[140px]">{t.nama}</span>
+                          <span className="text-xs font-black text-slate-700">{t.persen}%</span>
+                        </div>
+                        <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${barColor} transition-all duration-1000 ease-out`}
+                            style={{ width: `${Math.max(t.persen, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between items-center mt-4 text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                  <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+                </div>
+              </div>
+
+              {/* Waktu Pengerjaan */}
+              <div className="bg-white rounded-[28px] px-8 py-5 shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-800">Waktu Pengerjaan</p>
+                  <p className="text-sky-500 font-black text-sm">{menit} menit {detik} detik</p>
+                </div>
               </div>
             </div>
 
-            {/* Perlu Ditingkatkan */}
-            <div className="bg-white rounded-[28px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-white" />
-                <h3 className="text-white font-black text-sm uppercase tracking-wider">Perlu Ditingkatkan</h3>
-              </div>
-              <div className="p-6 space-y-5">
-                {materiLemah.map((m, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-700">{m.nama}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold text-slate-400">{m.benar}/{m.total}</span>
-                        <Badge className="bg-rose-50 text-rose-500 border-none hover:bg-rose-50 font-black text-xs">{m.persen}%</Badge>
+            {/* ═══ Right Column ═══ */}
+            <div className="space-y-6">
+              {/* Materi Kuat */}
+              <div className="bg-white rounded-[28px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden" style={{ maxHeight: '560px' }}>
+                <div className="px-6 py-4 flex items-center gap-3 border-b border-slate-50">
+                  <BarChart3 className="w-5 h-5 text-emerald-500" />
+                  <h3 className="font-black text-slate-800 text-sm">Materi Kuat</h3>
+                </div>
+                <div className="p-5 space-y-1 overflow-y-auto" style={{ maxHeight: '500px' }}>
+                  {materiKuat.length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-4">Belum ada materi kuat.</p>
+                  )}
+                  {materiKuat.map((m, i) => (
+                    <div key={i} className="py-3 border-b border-slate-50 last:border-none">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-bold text-slate-700">{m.nama}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-400">{m.benar}/{m.total}</span>
+                          <span className="text-sm font-black text-emerald-600">{m.persen}%</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={`https://www.youtube.com/results?search_query=materi+${mapelLabel}+SD+${m.nama}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-500 hover:bg-rose-100 transition-colors"
+                        >
+                          <PlayCircle className="h-3.5 w-3.5" /> Video
+                        </a>
+                        <a
+                          href={`https://www.google.com/search?q=materi+${mapelLabel}+SD+${m.nama}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-1.5 text-[11px] font-bold text-sky-500 hover:bg-sky-100 transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Bacaan
+                        </a>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <a
-                        href={`https://www.youtube.com/results?search_query=materi+${mapelLabel}+SD+${m.nama}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-[11px] font-bold text-rose-500 hover:bg-rose-50 transition-colors"
-                      >
-                        <PlayCircle className="h-3.5 w-3.5" /> Video
-                      </a>
-                      <a
-                        href={`https://www.google.com/search?q=materi+${mapelLabel}+SD+${m.nama}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-sky-200 px-3 py-2 text-[11px] font-bold text-sky-500 hover:bg-sky-50 transition-colors"
-                      >
-                        <BookIcon className="h-3.5 w-3.5" /> Bacaan
-                      </a>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* ── Rekomendasi Belajar ── */}
-          <div className="bg-amber-50 border border-amber-100 rounded-[28px] p-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                <Star className="w-6 h-6 fill-current" />
+              {/* Perlu Ditingkatkan */}
+              <div className="bg-white rounded-[28px] shadow-xl shadow-slate-200/50 border-2 border-amber-100 overflow-hidden">
+                <div className="bg-amber-50 px-6 py-4 flex items-center gap-3 border-b border-amber-100">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  <h3 className="font-black text-amber-800 text-sm">Perlu Ditingkatkan</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  {materiLemah.length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-4">Semua materi sudah baik! 🎉</p>
+                  )}
+                  {materiLemah.map((m, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-700">{m.nama}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-400">{m.benar}/{m.total}</span>
+                          <span className="text-sm font-black text-rose-500">{m.persen}%</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={`https://www.youtube.com/results?search_query=materi+${mapelLabel}+SD+${m.nama}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-500 hover:bg-rose-100 transition-colors"
+                        >
+                          <PlayCircle className="h-3.5 w-3.5" /> Video
+                        </a>
+                        <a
+                          href={`https://www.google.com/search?q=materi+${mapelLabel}+SD+${m.nama}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-1.5 text-[11px] font-bold text-sky-500 hover:bg-sky-100 transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Bacaan
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <h2 className="text-lg font-black text-amber-800">Rekomendasi Belajar</h2>
             </div>
-            <p className="text-amber-700 font-medium leading-relaxed mb-4">
-              Terus berlatih, kamu pasti bisa lebih baik! Fokus pada materi yang perlu ditingkatkan.
-            </p>
-            <ul className="space-y-2">
-              {materiLemah.map((m, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-amber-700">
-                  <span className="text-amber-400 mt-0.5">•</span>
-                  <span>Pelajari kembali <span className="font-black">{m.nama}</span> — klik topik di atas untuk video dan bacaan.</span>
-                </li>
-              ))}
-            </ul>
+
           </div>
 
           {/* ── Action Grid ── */}
@@ -1071,8 +1150,8 @@ const ExamInterface = () => {
             </Button>
             <Button
               className={`h-14 rounded-2xl text-white font-bold text-sm shadow-lg gap-2 col-span-1 transition-all ${isSubmitted
-                  ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200"
-                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-200 animate-bounce"
+                ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200"
+                : "bg-blue-600 hover:bg-blue-700 shadow-blue-200 animate-bounce animate-pulse"
                 }`}
               onClick={() => {
                 if (!isSubmitted) {
@@ -1082,13 +1161,17 @@ const ExamInterface = () => {
                 }
               }}
             >
-              {isSubmitted ? <CheckCircle2 className="w-5 h-5" /> : <Send className="w-5 h-5 animate-pulse" />}
+              {isSubmitted ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : (
+                <Send className="w-5 h-5 animate-pulse animate-bounce" />
+              )}
               {isSubmitted ? "Terkirim" : "Kirim ke Guru"}
             </Button>
             <Button
               variant="outline"
               className="h-14 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-sm gap-2"
-              onClick={() => navigate(`/mapel/${level}/${paket}`)}
+              onClick={() => navigate(`/paket/${level}`)}
             >
               <ExternalLink className="w-5 h-5 text-slate-400" /> Paket Lain
             </Button>
@@ -1446,7 +1529,7 @@ const ExamInterface = () => {
           </div>
 
           <Button
-            onClick={handleSubmit}
+            onClick={() => setShowConfirmModal(true)}
             className="h-10 rounded-lg bg-[#f97316] px-5 font-bold text-white hover:bg-orange-600 transition-all active:scale-95"
           >
             Selesai {isSurvey ? "Survei" : "Ujian"}
@@ -1772,6 +1855,45 @@ const ExamInterface = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* ═══ Confirmation Modal ═══ */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-8 text-center">
+            {/* Warning Icon */}
+            <div className="mx-auto w-16 h-16 rounded-full bg-orange-50 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-orange-500" />
+            </div>
+
+            <h3 className="text-xl font-bold text-slate-800">Selesaikan Ujian?</h3>
+            <p className="text-gray-500 mt-2 text-sm">
+              Anda telah menjawab{" "}
+              <span className={`font-black ${answeredCount === TOTAL_QUESTIONS ? "text-emerald-500" : "text-rose-500"}`}>
+                {answeredCount}
+              </span>{" "}
+              dari{" "}
+              <span className="font-black text-slate-700">{TOTAL_QUESTIONS}</span>{" "}soal.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mt-8">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 rounded-xl py-3 font-bold text-sm transition-colors"
+              >
+                Kembali
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  handleSubmit();
+                }}
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-3 font-bold text-sm flex justify-center items-center gap-2 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
