@@ -11,6 +11,7 @@ import KelolaKelas from "./pages/KelolaKelas";
 import PilihPaket from "./pages/PilihPaket";
 import PilihMapel from "./pages/PilihMapel";
 import ExamInterface from "./pages/ExamInterface";
+import CharacterResult from "./pages/CharacterResult";
 import StudentProgress from "./pages/StudentProgress";
 import AdminKelolaSoal from "./pages/AdminKelolaSoal";
 import DetailSiswa from "./pages/DetailSiswa";
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/exam/:level/:paket/:mapel" element={<ExamInterface />} />
           <Route path="/student-progress" element={<StudentProgress />} />
           <Route path="/admin/kelola-soal" element={<AdminKelolaSoal />} />
+          <Route path="/character-result" element={<CharacterResult />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

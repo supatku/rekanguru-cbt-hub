@@ -23,6 +23,14 @@ import {
   BookText,
   Building,
   FileText,
+  Send,
+  BarChart3,
+  Star,
+  Download,
+  Printer,
+  ArrowLeft,
+  ExternalLink,
+  KeyRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +45,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Tooltip,
   TooltipContent,
@@ -140,9 +150,12 @@ const ExamInterface = () => {
   const [namaSiswa, setNamaSiswa] = useState("");
   const [kodeKelas, setKodeKelas] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Results View State
   const [showResults, setShowResults] = useState(false);
+  const [showAnswerKey, setShowAnswerKey] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [finalResult, setFinalResult] = useState<{
     score: number;
     correct: number;
@@ -246,9 +259,72 @@ const ExamInterface = () => {
     setCurrentIndex((i) => Math.min(TOTAL_QUESTIONS - 1, i + 1));
   }, [TOTAL_QUESTIONS]);
 
+  const calculateResults = useCallback(() => {
+    let correctCount = 0;
+    let totalEarnedScore = 0;
+    const incorrectByTopic: Record<string, number[]> = {};
+
+    questions.forEach((q, idx) => {
+      const studentAns = answers[idx];
+      const correctAns = q.kunci_jawaban || "";
+      let isCorrect = false;
+
+      if (q.tipe_soal === "SURVEI_LIKERT") {
+        const weights: Record<string, number> = {};
+        correctAns.split(",").forEach(part => {
+          const [key, val] = part.split(":").map(v => v.trim());
+          if (key && val) weights[key] = parseInt(val, 10);
+        });
+        const weight = weights[studentAns as string] || 0;
+        totalEarnedScore += weight;
+      } else if (q.tipe_soal === "BENAR_SALAH") {
+        const studentMap = (typeof studentAns === "object" && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
+        const correctParts = correctAns.split(",").map(v => v.trim());
+        let allCorrect = correctParts.length > 0;
+        correctParts.forEach(part => {
+          const [key, val] = part.split(":");
+          if (studentMap[key] !== val) allCorrect = false;
+        });
+        isCorrect = allCorrect;
+      } else if (q.tipe_soal === "PG_KOMPLEKS") {
+        const studentArr = Array.isArray(studentAns) ? [...studentAns].sort() : [];
+        const correctArr = correctAns.split(",").map(v => v.trim()).sort();
+        isCorrect = studentArr.length > 0 && studentArr.join(",") === correctArr.join(",");
+      } else {
+        isCorrect = studentAns === correctAns;
+      }
+
+      if (isCorrect && q.tipe_soal !== "SURVEI_LIKERT") {
+        correctCount++;
+      } else if (!isCorrect && q.tipe_soal !== "SURVEI_LIKERT") {
+        const topic = q.topik || "Materi Umum";
+        if (!incorrectByTopic[topic]) incorrectByTopic[topic] = [];
+        incorrectByTopic[topic].push(idx + 1);
+      }
+    });
+
+    let score = 0;
+    if (isSurvey) {
+      const maxScore = questions.length * 4;
+      score = maxScore > 0 ? Math.round((totalEarnedScore / maxScore) * 100) : 0;
+    } else {
+      score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+    }
+
+    return {
+      score,
+      correct: isSurvey ? totalEarnedScore : correctCount,
+      wrong: isSurvey ? (questions.length * 4) : questions.length - correctCount,
+      total: isSurvey ? (questions.length * 4) : questions.length,
+      analysis: incorrectByTopic
+    };
+  }, [questions, answers, isSurvey]);
+
   const handleSubmit = useCallback(() => {
-    setIsSubmitDialogOpen(true);
-  }, []);
+    const results = calculateResults();
+    setFinalResult(results);
+    setShowResults(true);
+  }, [calculateResults]);
 
   const handleFinalSubmit = async () => {
     if (!namaSiswa.trim() || !kodeKelas.trim()) {
@@ -345,59 +421,8 @@ const ExamInterface = () => {
       }
 
       console.log("Proceeding to exam scoring...");
-      let correctCount = 0;
-      let totalEarnedScore = 0;
-      const incorrectByTopic: Record<string, number[]> = {};
-
-      questions.forEach((q, idx) => {
-        const studentAns = answers[idx];
-        const correctAns = q.kunci_jawaban || "";
-        let isCorrect = false;
-
-        if (q.tipe_soal === "SURVEI_LIKERT") {
-          // Parse format: A:4,B:3,C:2,D:1
-          const weights: Record<string, number> = {};
-          correctAns.split(",").forEach(part => {
-            const [key, val] = part.split(":").map(v => v.trim());
-            if (key && val) weights[key] = parseInt(val, 10);
-          });
-          const weight = weights[studentAns as string] || 0;
-          totalEarnedScore += weight;
-          // In survey, we don't necessarily track "correct" count in the same way,
-          // but we'll use totalEarnedScore for the final percentage.
-        } else if (q.tipe_soal === "BENAR_SALAH") {
-          const studentMap = (typeof studentAns === "object" && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
-          const correctParts = correctAns.split(",").map(v => v.trim());
-          let allCorrect = correctParts.length > 0;
-          correctParts.forEach(part => {
-            const [key, val] = part.split(":");
-            if (studentMap[key] !== val) allCorrect = false;
-          });
-          isCorrect = allCorrect;
-        } else if (q.tipe_soal === "PG_KOMPLEKS") {
-          const studentArr = Array.isArray(studentAns) ? [...studentAns].sort() : [];
-          const correctArr = correctAns.split(",").map(v => v.trim()).sort();
-          isCorrect = studentArr.length > 0 && studentArr.join(",") === correctArr.join(",");
-        } else {
-          isCorrect = studentAns === correctAns;
-        }
-
-        if (isCorrect && q.tipe_soal !== "SURVEI_LIKERT") {
-          correctCount++;
-        } else if (!isCorrect && q.tipe_soal !== "SURVEI_LIKERT") {
-          const topic = q.topik || "Materi Umum";
-          if (!incorrectByTopic[topic]) incorrectByTopic[topic] = [];
-          incorrectByTopic[topic].push(idx + 1);
-        }
-      });
-
-      let score = 0;
-      if (isSurvey) {
-        const maxScore = questions.length * 4; // Asumsi max bobot 4
-        score = maxScore > 0 ? Math.round((totalEarnedScore / maxScore) * 100) : 0;
-      } else {
-        score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
-      }
+      const results = finalResult || calculateResults();
+      const { score, correct: correctCount } = results;
       const waktuPengerjaan = (isSurvey ? 1800 : 3600) - seconds;
 
       console.log("Step 5: Final Results Insertion");
@@ -423,13 +448,10 @@ const ExamInterface = () => {
 
       console.log("Submission COMPLETE. Showing results.");
 
-      setFinalResult({
-        score,
-        correct: isSurvey ? totalEarnedScore : correctCount,
-        wrong: isSurvey ? (questions.length * 4) : questions.length - correctCount,
-        total: isSurvey ? (questions.length * 4) : questions.length,
-        analysis: incorrectByTopic
-      });
+      if (!finalResult) {
+        setFinalResult(results);
+      }
+      setIsSubmitted(true);
       setShowResults(true);
       toast.success("Ujian berhasil dikirim! Tetap semangat.");
     } catch (error: any) {
@@ -476,135 +498,140 @@ const ExamInterface = () => {
     const performanceColor = accuracy >= 80 ? "text-emerald-500" : accuracy >= 60 ? "text-amber-500" : "text-rose-500";
     const gradeLetter = accuracy >= 80 ? "A" : accuracy >= 60 ? "B" : accuracy >= 40 ? "C" : "E";
 
-    return (
-      <div className="min-h-screen bg-slate-50 pb-20 pt-10 px-4 md:px-8">
-        <div className="mx-auto max-w-4xl space-y-8">
-          <div className="text-center space-y-2">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-amber-400 text-white shadow-lg shadow-amber-200">
-              {isSurvey ? <BookIcon className="h-10 w-10" /> : <Trophy className="h-10 w-10" />}
+    // Dummy dimension data for Character Survey visualization
+    const dimensiKarakter = [
+      { nama: 'Keimanan dan Ketakwaan', skor: 67, status: 'Cukup', color: 'bg-teal-500', hex: '#0d9488' },
+      { nama: 'Kewargaan', skor: 100, status: 'Sangat Baik', color: 'bg-blue-500', hex: '#3b82f6' },
+      { nama: 'Penalaran Kritis', skor: 100, status: 'Sangat Baik', color: 'bg-orange-500', hex: '#f97316' },
+      { nama: 'Kreativitas', skor: 100, status: 'Sangat Baik', color: 'bg-red-500', hex: '#ef4444' },
+      { nama: 'Kolaborasi', skor: 100, status: 'Sangat Baik', color: 'bg-indigo-500', hex: '#8b5cf6' },
+      { nama: 'Kemandirian', skor: 100, status: 'Sangat Baik', color: 'bg-pink-500', hex: '#ec4899' },
+      { nama: 'Kesehatan', skor: 80, status: 'Baik', color: 'bg-teal-400', hex: '#2dd4bf' },
+      { nama: 'Komunikasi', skor: 100, status: 'Sangat Baik', color: 'bg-rose-500', hex: '#f43f5e' },
+    ];
+
+    // ─── SURVEY KARAKTER: Premium Pink-Pastel Results UI ───
+    if (isSurvey) {
+      return (
+        <div className="min-h-screen bg-pink-50 pb-10">
+          {/* Header */}
+          <header className="pt-12 pb-8 px-4 text-center">
+            <div className="mx-auto w-16 h-16 bg-pink-500 rounded-full flex items-center justify-center shadow-lg shadow-pink-200 mb-4">
+              <Heart className="text-white w-8 h-8 fill-current" />
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight text-center">{isSurvey ? 'Hasil Survei' : 'Hasil Ujian'}</h1>
-            <p className="text-slate-500 font-bold uppercase tracking-widest text-sm text-center">Paket {paket} - {mapelLabel}</p>
-          </div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Hasil Survei Karakter</h1>
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-2">8 Dimensi Profil Lulusan</p>
+          </header>
 
-          <div className="grid gap-8 lg:grid-cols-5">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="overflow-hidden rounded-[32px] bg-white border-none shadow-xl">
-                <div className="p-8 text-center space-y-6">
-                  <div className="space-y-1">
-                    <span className={`text-7xl font-black ${performanceColor}`}>{isSurvey ? accuracy + '%' : gradeLetter}</span>
-                    <p className="font-bold text-slate-400 uppercase tracking-widest text-xs text-center">{isSurvey ? 'Indeks Kesesuaian' : performanceLabel}</p>
-                  </div>
-
-                  <div className="relative mx-auto flex h-48 w-48 items-center justify-center">
-                    <svg className="h-full w-full -rotate-90 transform">
-                      <circle cx="96" cy="96" r="88" className="stroke-slate-100" strokeWidth="12" fill="transparent" />
-                      <circle cx="96" cy="96" r="88" className={`transition-all duration-1000 ${performanceColor} stroke-current`} strokeWidth="12" fill="transparent" strokeDasharray={2 * Math.PI * 88} strokeDashoffset={2 * Math.PI * 88 * (1 - accuracy / 100)} strokeLinecap="round" />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-5xl font-black text-slate-800">{accuracy}%</span>
+          <main className="max-w-6xl mx-auto px-4 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-6">
+                {/* Score Summary Card */}
+                <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-pink-100/50 border border-pink-50 flex flex-col items-center text-center">
+                  <span className="text-7xl font-black text-teal-600 tracking-tighter mb-2">
+                    {accuracy}%
+                  </span>
+                  <Badge className="bg-emerald-100 text-emerald-600 hover:bg-emerald-100 border-none font-black px-6 py-2 rounded-full text-sm mb-8">
+                    {performanceLabel}
+                  </Badge>
+                  <div className="grid grid-cols-2 gap-4 w-full">
+                    <div className="bg-pink-50 rounded-2xl p-4 flex flex-col items-center">
+                      <CheckCircle2 className="w-5 h-5 text-pink-500 mb-1" />
+                      <span className="text-2xl font-black text-slate-800">{finalResult.correct}</span>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Skor</p>
+                    </div>
+                    <div className="bg-pink-50 rounded-2xl p-4 flex flex-col items-center">
+                      <LayoutPanelLeft className="w-5 h-5 text-pink-500 mb-1" />
+                      <span className="text-2xl font-black text-slate-800">{finalResult.total}</span>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Skor Maksimal</p>
                     </div>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-4">
-                    <div className="rounded-2xl bg-emerald-50 p-4">
-                      <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-500 mb-1" />
-                      <p className="text-2xl font-black text-emerald-700">{finalResult.correct}</p>
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase text-center">{isSurvey ? 'Total Skor' : 'Benar'}</p>
+                {/* Horizontal Bar Chart Card */}
+                <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-pink-100/50 border border-pink-50">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500">
+                      <BarChart3 className="w-6 h-6" />
                     </div>
-                    <div className="rounded-2xl bg-sky-50 p-4">
-                      <LayoutPanelLeft className="mx-auto h-5 w-5 text-sky-500 mb-1" />
-                      <p className="text-2xl font-black text-sky-700">{finalResult.total}</p>
-                      <p className="text-[10px] font-bold text-sky-600 uppercase text-center">{isSurvey ? 'Skor Maksimal' : 'Total'}</p>
-                    </div>
+                    <h2 className="text-lg font-black text-slate-800">Skor per Dimensi</h2>
+                  </div>
+                  <div className="space-y-4">
+                    {dimensiKarakter.map((dim, idx) => (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-500 truncate max-w-[120px]">{dim.nama}</span>
+                          <span className="text-[11px] font-black text-slate-600">{dim.skor}%</span>
+                        </div>
+                        <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${dim.color} transition-all duration-1000 ease-out`}
+                            style={{ width: `${dim.skor}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center mt-4 text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                    <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
                   </div>
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-[24px] bg-sky-500 text-white shadow-lg">
-                <div className="flex items-center gap-4 p-6 text-left">
-                  <div className="rounded-full bg-white/20 p-3"><Clock className="h-6 w-6" /></div>
-                  <div>
-                    <p className="text-xs font-bold uppercase opacity-80">Waktu Pengerjaan</p>
-                    <p className="text-xl font-black">{Math.floor(((isSurvey ? 1800 : 3600) - seconds) / 60)} menit {((isSurvey ? 1800 : 3600) - seconds) % 60} detik</p>
+              {/* Right Column: Detail Dimensi */}
+              <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-pink-100/50 border border-pink-50 flex flex-col overflow-hidden" style={{ maxHeight: '720px' }}>
+                <div className="flex items-center gap-3 mb-6 shrink-0">
+                  <div className="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center text-pink-500">
+                    <BookIcon className="w-6 h-6" />
                   </div>
+                  <h2 className="text-lg font-black text-slate-800">Detail Dimensi Karakter</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto pr-2 space-y-5">
+                  {dimensiKarakter.map((dim, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-slate-700">{dim.nama}</span>
+                        <span
+                          className={`text-xs font-black px-2.5 py-1 rounded-lg ${dim.skor >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}
+                        >
+                          {dim.skor}%
+                        </span>
+                      </div>
+                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${dim.skor}%`, backgroundColor: dim.hex }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dim.hex }} />
+                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: dim.hex }}>
+                          {dim.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            <div className="lg:col-span-3 space-y-6">
-              {!isSurvey && (
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-500 border border-amber-200">
-                    <AlertTriangle className="h-6 w-6" />
-                  </div>
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight text-left">
-                    Analisis & Rekomendasi
-                  </h3>
+
+            {/* Action Buttons */}
+            <div className="mt-8 space-y-4 max-w-6xl mx-auto">
+              {!isSubmitted && (
+                <Button
+                  onClick={() => setIsSubmitDialogOpen(true)}
+                  className="w-full h-14 rounded-2xl bg-pink-500 hover:bg-pink-600 text-white font-black text-lg shadow-xl shadow-pink-200/50 flex items-center justify-center gap-3 transition-all active:scale-95"
+                >
+                  <Send className="w-6 h-6 rotate-[-20deg]" /> Kirim Hasil ke Guru
+                </Button>
+              )}
+              {isSubmitted && (
+                <div className="flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <span className="text-sm font-bold text-emerald-700">Hasil sudah terkirim ke Guru!</span>
                 </div>
               )}
-              <div className="space-y-4">
-                {!isSurvey && Object.entries(finalResult.analysis).length > 0 ? (
-                  Object.entries(finalResult.analysis).map(([topic, qNums]) => (
-                    <div
-                      key={topic}
-                      className="overflow-hidden rounded-[24px] border border-slate-100 bg-white p-6 shadow-sm text-left"
-                    >
-                      <div className="mb-4 flex items-start justify-between">
-                        <div>
-                          <h4 className="text-lg font-black text-slate-800">{topic}</h4>
-                          <p className="text-xs font-bold text-slate-400">
-                            Kamu belum tepat di materi ini (Soal No: {qNums.join(", ")})
-                          </p>
-                        </div>
-                        <Badge
-                          variant="secondary"
-                          className="bg-rose-100 text-rose-600 border-none font-black px-3"
-                        >
-                          {qNums.length} Soal
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <a
-                          href={`https://www.youtube.com/results?search_query=materi+${mapelLabel}+SD+${topic}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm font-black text-rose-600"
-                        >
-                          <PlayCircle className="h-5 w-5" /> Video
-                        </a>
-                        <a
-                          href={`https://www.google.com/search?q=materi+${mapelLabel}+SD+${topic}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-sky-50 px-4 py-3 text-sm font-black text-sky-600"
-                        >
-                          <BookIcon className="h-5 w-5" /> Bacaan
-                        </a>
-                      </div>
-                    </div>
-                  ))
-                ) : !isSurvey ? (
-                  <div className="flex flex-col items-center justify-center rounded-[32px] bg-emerald-50 p-12 text-center">
-                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-200">
-                      <CheckCircle2 className="h-8 w-8" />
-                    </div>
-                    <h4 className="text-xl font-black text-emerald-800 text-center">Sempurna!</h4>
-                    <p className="text-emerald-600 font-bold text-center">
-                      Kamu Hebat! Semua materi sudah dikuasai.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-[32px] bg-sky-50 p-12 text-center">
-                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg shadow-sky-200">
-                      <CheckCircle2 className="h-8 w-8" />
-                    </div>
-                    <h4 className="text-xl font-black text-sky-800 text-center">Survei Selesai!</h4>
-                    <p className="text-sky-600 font-bold text-center">
-                      Terima kasih, {namaSiswa}! Pilihan kamu sudah terekam untuk dianalisis oleh Bapak/Ibu Guru.
-                    </p>
-                  </div>
-                )}
-              </div>
               <Button
                 onClick={() => navigate("/")}
                 className="w-full h-14 rounded-2xl bg-slate-900 text-white font-black text-lg shadow-xl"
@@ -612,11 +639,764 @@ const ExamInterface = () => {
                 <Home className="mr-3 h-6 w-6" /> Kembali ke Beranda
               </Button>
             </div>
-          </div>
+          </main>
+
+          {/* ═══ Submit Identity Modal (MUST be inside this return) ═══ */}
+          <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+            <DialogContent className="sm:max-w-[480px] rounded-[24px] border-none p-8 gap-6 shadow-2xl z-[100]">
+              <DialogHeader className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-rose-50 text-rose-500">
+                    <Send className="w-6 h-6" />
+                  </div>
+                  <DialogTitle className="text-2xl font-black text-slate-800">Kirim Hasil ke Guru</DialogTitle>
+                </div>
+                <DialogDescription className="text-slate-500 font-medium leading-relaxed">
+                  Masukkan kode kelas dan nama lengkapmu untuk mengirim hasil survei ke guru.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-5 py-2">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Nama Lengkap</Label>
+                  <input
+                    value={namaSiswa}
+                    onChange={(e) => setNamaSiswa(e.target.value)}
+                    placeholder="Masukkan nama lengkapmu"
+                    className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50/50 outline-none transition-all font-medium text-slate-800 placeholder:text-gray-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Kode Kelas</Label>
+                  <input
+                    value={kodeKelas}
+                    onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
+                    placeholder="Contoh: MONO123"
+                    className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
+                  />
+                </div>
+              </div>
+              <div className="pt-2">
+                <Button
+                  onClick={handleFinalSubmit}
+                  disabled={isSubmitting}
+                  className={`w-full h-14 rounded-xl text-white font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${isSubmitting ? "bg-slate-400 cursor-not-allowed" : "bg-rose-500 hover:bg-rose-600 shadow-rose-200"}`}
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Mengirim...</span>
+                    </div>
+                  ) : (
+                    "Kirim Hasil"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
+      );
+    }
+
+    // ─── EXAM REGULAR: Comprehensive Results UI ───
+    // Dummy analytics data for visualization
+    const topikPerformance = [
+      { nama: 'Operasi Pecahan', persen: 0 },
+      { nama: 'Satuan Volume', persen: 33 },
+      { nama: 'Kecepatan', persen: 50 },
+      { nama: 'Sudut & Pengukuran', persen: 67 },
+      { nama: 'KPK & FPB', persen: 80 },
+      { nama: 'Piktogram & Diagram', persen: 100 },
+    ];
+    const materiKuat = [
+      { nama: 'Visualisasi Spasial', benar: 1, total: 1, persen: 100 },
+      { nama: 'Diagram Batang', benar: 1, total: 1, persen: 100 },
+      { nama: 'Prediksi Data', benar: 1, total: 1, persen: 100 },
+      { nama: 'Piktogram', benar: 1, total: 1, persen: 100 },
+    ];
+    const materiLemah = [
+      { nama: 'Pecahan Senilai', benar: 0, total: 1, persen: 0 },
+      { nama: 'Perbandingan Pecahan', benar: 0, total: 1, persen: 0 },
+      { nama: 'Relasi Pecahan', benar: 0, total: 1, persen: 0 },
+    ];
+
+    const waktuDipakai = (isSurvey ? 1800 : 3600) - seconds;
+    const menit = Math.floor(waktuDipakai / 60);
+    const detik = waktuDipakai % 60;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50/30 pb-10">
+        {/* ── Header ── */}
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100 shadow-sm">
+          <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 h-16">
+            <button onClick={() => navigate(-1)} className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-lg font-black text-slate-900 leading-tight">Hasil Ujian</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Paket {paket} - {mapelLabel}</p>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-5xl mx-auto px-4 pt-8 space-y-8">
+          {/* ── Score Card ── */}
+          <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 text-center space-y-6">
+            <div className={`text-8xl font-black tracking-tighter ${performanceColor}`}>
+              {accuracy}%
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
+                <CheckCircle2 className="w-4 h-4" /> {finalResult.correct} Benar
+              </Badge>
+              <Badge className="bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
+                <XCircle className="w-4 h-4" /> {finalResult.wrong} Salah
+              </Badge>
+              <Badge className="bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
+                <LayoutPanelLeft className="w-4 h-4" /> {finalResult.total} Total
+              </Badge>
+              <Badge className="bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-50 font-black px-4 py-2 rounded-full text-sm gap-1.5">
+                <Clock className="w-4 h-4" /> {menit}m {detik}s
+              </Badge>
+            </div>
+          </div>
+
+          {/* ── Performa per Topik ── */}
+          <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <h2 className="text-lg font-black text-slate-800">Performa per Topik</h2>
+            </div>
+            <div className="space-y-4">
+              {topikPerformance.sort((a, b) => a.persen - b.persen).map((t, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">{t.nama}</span>
+                    <span className="text-xs font-black text-slate-700">{t.persen}%</span>
+                  </div>
+                  <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-400 transition-all duration-1000 ease-out"
+                      style={{ width: `${Math.max(t.persen, 2)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between items-center mt-4 text-[10px] font-black text-slate-300 uppercase tracking-widest">
+              <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+            </div>
+          </div>
+
+          {/* ── Split Card: Materi Kuat vs Lemah ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Materi Kuat */}
+            <div className="bg-white rounded-[28px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-4 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+                <h3 className="text-white font-black text-sm uppercase tracking-wider">Materi Kuat</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {materiKuat.map((m, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-none">
+                    <span className="text-sm font-bold text-slate-700">{m.nama}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-400">{m.benar}/{m.total}</span>
+                      <Badge className="bg-emerald-50 text-emerald-600 border-none hover:bg-emerald-50 font-black text-xs">{m.persen}%</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Perlu Ditingkatkan */}
+            <div className="bg-white rounded-[28px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                <h3 className="text-white font-black text-sm uppercase tracking-wider">Perlu Ditingkatkan</h3>
+              </div>
+              <div className="p-6 space-y-5">
+                {materiLemah.map((m, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-700">{m.nama}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-400">{m.benar}/{m.total}</span>
+                        <Badge className="bg-rose-50 text-rose-500 border-none hover:bg-rose-50 font-black text-xs">{m.persen}%</Badge>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={`https://www.youtube.com/results?search_query=materi+${mapelLabel}+SD+${m.nama}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-[11px] font-bold text-rose-500 hover:bg-rose-50 transition-colors"
+                      >
+                        <PlayCircle className="h-3.5 w-3.5" /> Video
+                      </a>
+                      <a
+                        href={`https://www.google.com/search?q=materi+${mapelLabel}+SD+${m.nama}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-sky-200 px-3 py-2 text-[11px] font-bold text-sky-500 hover:bg-sky-50 transition-colors"
+                      >
+                        <BookIcon className="h-3.5 w-3.5" /> Bacaan
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Rekomendasi Belajar ── */}
+          <div className="bg-amber-50 border border-amber-100 rounded-[28px] p-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                <Star className="w-6 h-6 fill-current" />
+              </div>
+              <h2 className="text-lg font-black text-amber-800">Rekomendasi Belajar</h2>
+            </div>
+            <p className="text-amber-700 font-medium leading-relaxed mb-4">
+              Terus berlatih, kamu pasti bisa lebih baik! Fokus pada materi yang perlu ditingkatkan.
+            </p>
+            <ul className="space-y-2">
+              {materiLemah.map((m, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-amber-700">
+                  <span className="text-amber-400 mt-0.5">•</span>
+                  <span>Pelajari kembali <span className="font-black">{m.nama}</span> — klik topik di atas untuk video dan bacaan.</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* ── Action Grid ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              className={`h-14 rounded-2xl border-2 font-bold text-sm shadow-sm gap-2 ${showAnswerKey
+                ? "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                }`}
+              onClick={() => setShowAnswerKey(!showAnswerKey)}
+            >
+              <BookText className="w-5 h-5" /> {showAnswerKey ? "Sembunyikan Kunci" : "Kunci Jawaban"}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-sm gap-2"
+              onClick={() => {
+                const doc = new jsPDF();
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const now = new Date();
+                const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                const tanggal = `${now.getDate()} ${bulan[now.getMonth()]} ${now.getFullYear()}`;
+
+                // Header
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('LAPORAN HASIL UJIAN', pageWidth / 2, 28, { align: 'center' });
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'normal');
+                doc.text('Tes Kemampuan Akademik (TKA)', pageWidth / 2, 36, { align: 'center' });
+                doc.setDrawColor(200);
+                doc.line(20, 42, pageWidth - 20, 42);
+
+                // Metadata
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                const meta = [
+                  ['Nama Siswa', namaSiswa.trim() || 'Siswa'],
+                  ['Paket Soal', `Paket ${paket}`],
+                  ['Mata Pelajaran', mapelLabel],
+                  ['Waktu', `${menit} menit ${detik} detik`],
+                  ['Tanggal', tanggal],
+                ];
+                let yPos = 52;
+                meta.forEach(([label, val]) => {
+                  doc.setFont('helvetica', 'bold');
+                  doc.text(`${label}:`, 20, yPos);
+                  doc.setFont('helvetica', 'normal');
+                  doc.text(val, 70, yPos);
+                  yPos += 8;
+                });
+
+                // Score box
+                yPos += 6;
+                doc.setFillColor(245, 247, 250);
+                doc.roundedRect(20, yPos, pageWidth - 40, 35, 4, 4, 'F');
+                doc.setFontSize(28);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${accuracy}%`, pageWidth / 2, yPos + 18, { align: 'center' });
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`${finalResult.correct} dari ${finalResult.total} soal benar`, pageWidth / 2, yPos + 28, { align: 'center' });
+
+                // Topic analysis table
+                yPos += 45;
+                doc.setFontSize(13);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Analisis Per Topik', 20, yPos);
+                yPos += 4;
+
+                // Dynamic topic analysis from actual questions/answers
+                const topicMap: Record<string, { benar: number; total: number }> = {};
+                questions.forEach((q, idx) => {
+                  const topicName = q.topik || 'Materi Umum';
+                  if (!topicMap[topicName]) topicMap[topicName] = { benar: 0, total: 0 };
+                  topicMap[topicName].total++;
+                  const studentAns = answers[idx];
+                  const correctAns = q.kunci_jawaban || '';
+                  let isCorrect = false;
+                  if (q.tipe_soal === 'BENAR_SALAH') {
+                    const sm = (typeof studentAns === 'object' && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
+                    const cp = correctAns.split(',').map(v => v.trim());
+                    let ok = cp.length > 0;
+                    cp.forEach(p => { const [k, v] = p.split(':'); if (sm[k] !== v) ok = false; });
+                    isCorrect = ok;
+                  } else if (q.tipe_soal === 'PG_KOMPLEKS') {
+                    const sa = Array.isArray(studentAns) ? [...studentAns].sort() : [];
+                    const ca = correctAns.split(',').map(v => v.trim()).sort();
+                    isCorrect = sa.length > 0 && sa.join(',') === ca.join(',');
+                  } else {
+                    isCorrect = studentAns === correctAns;
+                  }
+                  if (isCorrect) topicMap[topicName].benar++;
+                });
+
+                const tableData = Object.entries(topicMap).map(([nama, d]) => {
+                  const persen = d.total > 0 ? Math.round((d.benar / d.total) * 100) : 0;
+                  return [
+                    nama,
+                    `${d.benar}/${d.total}`,
+                    `${persen}%`,
+                    persen >= 80 ? 'Sangat Baik' : persen >= 60 ? 'Baik' : 'Perlu Ditingkatkan',
+                  ];
+                });
+
+                autoTable(doc, {
+                  startY: yPos,
+                  head: [['Topik', 'Benar/Total', 'Persentase', 'Status']],
+                  body: tableData,
+                  margin: { left: 20, right: 20 },
+                  styles: { fontSize: 10, cellPadding: 4 },
+                  headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+                  alternateRowStyles: { fillColor: [248, 250, 252] },
+                });
+
+                // Detail Kunci Jawaban table
+                const lastY = (doc as any).lastAutoTable?.finalY || yPos + 50;
+                const detailStartY = lastY + 15;
+                doc.setFontSize(13);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Detail Kunci Jawaban', 20, detailStartY);
+
+                const detailData = questions.map((q, idx) => {
+                  const studentAns = answers[idx];
+                  const correctAns = q.kunci_jawaban || '';
+                  let isCorrect = false;
+                  if (q.tipe_soal === 'BENAR_SALAH') {
+                    const sm = (typeof studentAns === 'object' && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
+                    const cp = correctAns.split(',').map(v => v.trim());
+                    let ok = cp.length > 0;
+                    cp.forEach(p => { const [k, v] = p.split(':'); if (sm[k] !== v) ok = false; });
+                    isCorrect = ok;
+                  } else if (q.tipe_soal === 'PG_KOMPLEKS') {
+                    const sa = Array.isArray(studentAns) ? [...studentAns].sort() : [];
+                    const ca = correctAns.split(',').map(v => v.trim()).sort();
+                    isCorrect = sa.length > 0 && sa.join(',') === ca.join(',');
+                  } else {
+                    isCorrect = studentAns === correctAns;
+                  }
+                  const ansStr = studentAns != null ? String(typeof studentAns === 'object' ? JSON.stringify(studentAns) : studentAns) : '-';
+                  return [
+                    String(idx + 1),
+                    q.topik || 'Umum',
+                    ansStr,
+                    correctAns,
+                    isCorrect ? 'Benar' : 'Salah',
+                  ];
+                });
+
+                autoTable(doc, {
+                  startY: detailStartY + 4,
+                  head: [['No', 'Topik Soal', 'Jawaban Siswa', 'Kunci Jawaban', 'Status']],
+                  body: detailData,
+                  margin: { left: 20, right: 20 },
+                  styles: { fontSize: 9, cellPadding: 3 },
+                  headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+                  alternateRowStyles: { fillColor: [248, 250, 252] },
+                  columnStyles: {
+                    0: { cellWidth: 12, halign: 'center' },
+                    4: { cellWidth: 20, halign: 'center' },
+                  },
+                  didParseCell: (data: any) => {
+                    if (data.section === 'body' && data.column.index === 4) {
+                      if (data.cell.raw === 'Benar') {
+                        data.cell.styles.textColor = [22, 163, 74];
+                        data.cell.styles.fontStyle = 'bold';
+                      } else {
+                        data.cell.styles.textColor = [220, 38, 38];
+                        data.cell.styles.fontStyle = 'bold';
+                      }
+                    }
+                  },
+                });
+
+                const fileName = `Hasil_${mapelLabel.replace(/\s/g, '_')}_Paket${paket}_${menit}m${detik}s.pdf`;
+                doc.save(fileName);
+                toast.success('PDF berhasil diunduh!');
+              }}
+            >
+              <Download className="w-5 h-5 text-slate-400" /> Download PDF
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-sm gap-2"
+              onClick={() => setIsPrintModalOpen(true)}
+            >
+              <Printer className="w-5 h-5 text-slate-400" /> Print Soal
+            </Button>
+            <Button
+              className="h-14 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-sm shadow-amber-200 gap-2"
+              onClick={() => {
+                setShowResults(false);
+                setFinalResult(null);
+                setAnswers(new Array(questions.length).fill(null));
+                setCurrentIndex(0);
+              }}
+            >
+              <RefreshCw className="w-5 h-5" /> Ulangi Ujian
+            </Button>
+            <Button
+              className={`h-14 rounded-2xl text-white font-bold text-sm shadow-lg gap-2 col-span-1 transition-all ${isSubmitted
+                  ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-200 animate-bounce"
+                }`}
+              onClick={() => {
+                if (!isSubmitted) {
+                  setIsSubmitDialogOpen(true);
+                } else {
+                  toast.success("Hasil sudah terkirim!");
+                }
+              }}
+            >
+              {isSubmitted ? <CheckCircle2 className="w-5 h-5" /> : <Send className="w-5 h-5 animate-pulse" />}
+              {isSubmitted ? "Terkirim" : "Kirim ke Guru"}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-sm gap-2"
+              onClick={() => navigate(`/mapel/${level}/${paket}`)}
+            >
+              <ExternalLink className="w-5 h-5 text-slate-400" /> Paket Lain
+            </Button>
+          </div>
+
+          {/* ── Print Modal ── */}
+          {isPrintModalOpen && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setIsPrintModalOpen(false)}>
+              <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-md p-8 mx-4 space-y-5" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-black text-slate-800">Print Soal</h2>
+                  <button onClick={() => setIsPrintModalOpen(false)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500">Pilih jenis dokumen yang ingin di-print.</p>
+                <div className="space-y-3">
+                  {/* Soal Ujian card */}
+                  <button
+                    className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left"
+                    onClick={() => {
+                      const doc = new jsPDF();
+                      const pw = doc.internal.pageSize.getWidth();
+                      const ph = doc.internal.pageSize.getHeight();
+
+                      // Blue header
+                      doc.setFillColor(79, 70, 229);
+                      doc.rect(0, 0, pw, 45, 'F');
+                      doc.setTextColor(255, 255, 255);
+                      doc.setFontSize(20);
+                      doc.setFont('helvetica', 'bold');
+                      doc.text(`SOAL ${mapelLabel.toUpperCase()}`, pw / 2, 22, { align: 'center' });
+                      doc.setFontSize(11);
+                      doc.setFont('helvetica', 'normal');
+                      doc.text(`Paket ${paket} - Tes Kemampuan Akademik`, pw / 2, 34, { align: 'center' });
+
+                      // Instructions
+                      doc.setTextColor(0, 0, 0);
+                      doc.setFontSize(10);
+                      doc.setFont('helvetica', 'bold');
+                      doc.text('Petunjuk Pengerjaan:', 20, 58);
+                      doc.setFont('helvetica', 'normal');
+                      doc.setFontSize(9);
+                      doc.text('Pilihlah satu jawaban yang paling tepat dari setiap soal berikut.', 20, 65);
+                      doc.setDrawColor(200);
+                      doc.line(20, 70, pw - 20, 70);
+
+                      let y = 80;
+                      const maxW = pw - 40;
+
+                      questions.forEach((q, idx) => {
+                        // Check page break (need ~60px min for a question)
+                        if (y > ph - 60) {
+                          doc.addPage();
+                          y = 25;
+                        }
+
+                        // Soal number (blue) + topik (gray)
+                        doc.setFontSize(11);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setTextColor(79, 70, 229);
+                        doc.text(`Soal ${idx + 1}`, 20, y);
+                        doc.setFont('helvetica', 'italic');
+                        doc.setFontSize(9);
+                        doc.setTextColor(140, 140, 140);
+                        doc.text(q.topik || 'Umum', 50, y);
+                        y += 7;
+
+                        // Question text with word wrap
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(10);
+                        doc.setTextColor(30, 30, 30);
+                        const lines = doc.splitTextToSize(q.teks_soal || '', maxW);
+                        lines.forEach((line: string) => {
+                          if (y > ph - 20) { doc.addPage(); y = 25; }
+                          doc.text(line, 20, y);
+                          y += 5;
+                        });
+                        y += 3;
+
+                        // Options
+                        if (q.opsi_jawaban && q.opsi_jawaban.length > 0) {
+                          q.opsi_jawaban.forEach((opt) => {
+                            if (y > ph - 15) { doc.addPage(); y = 25; }
+                            doc.setFontSize(10);
+                            doc.setTextColor(50, 50, 50);
+                            const optLines = doc.splitTextToSize(`${opt.key}. ${opt.label}`, maxW - 10);
+                            optLines.forEach((ol: string) => {
+                              doc.text(ol, 28, y);
+                              y += 5;
+                            });
+                          });
+                        }
+                        y += 8;
+                      });
+
+                      doc.save(`Soal_${mapelLabel.replace(/\s/g, '_')}_Paket${paket}.pdf`);
+                      setIsPrintModalOpen(false);
+                      toast.success('PDF Soal berhasil diunduh!');
+                    }}
+                  >
+                    <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 shrink-0">
+                      <BookIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-800">Soal Ujian</p>
+                      <p className="text-xs text-slate-400">Download soal dalam format PDF untuk dicetak</p>
+                    </div>
+                  </button>
+
+                  {/* Kunci Jawaban card */}
+                  <button
+                    className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-slate-100 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left"
+                    onClick={() => {
+                      const doc = new jsPDF();
+                      const pw = doc.internal.pageSize.getWidth();
+
+                      // Green header
+                      doc.setFillColor(16, 185, 129);
+                      doc.rect(0, 0, pw, 45, 'F');
+                      doc.setTextColor(255, 255, 255);
+                      doc.setFontSize(20);
+                      doc.setFont('helvetica', 'bold');
+                      doc.text(`KUNCI JAWABAN ${mapelLabel.toUpperCase()}`, pw / 2, 22, { align: 'center' });
+                      doc.setFontSize(11);
+                      doc.setFont('helvetica', 'normal');
+                      doc.text(`Paket ${paket} - Tes Kemampuan Akademik`, pw / 2, 34, { align: 'center' });
+
+                      // Table
+                      const kunciData = questions.map((q, idx) => [
+                        String(idx + 1),
+                        q.topik || 'Umum',
+                        q.kunci_jawaban || '-',
+                      ]);
+
+                      autoTable(doc, {
+                        startY: 55,
+                        head: [['No', 'Topik', 'Kunci Jawaban']],
+                        body: kunciData,
+                        margin: { left: 20, right: 20 },
+                        styles: { fontSize: 10, cellPadding: 4 },
+                        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+                        alternateRowStyles: { fillColor: [240, 253, 244] },
+                        columnStyles: {
+                          0: { cellWidth: 15, halign: 'center' },
+                          2: { cellWidth: 30, halign: 'center', fontStyle: 'bold' },
+                        },
+                      });
+
+                      doc.save(`Kunci_Jawaban_${mapelLabel.replace(/\s/g, '_')}_Paket${paket}.pdf`);
+                      setIsPrintModalOpen(false);
+                      toast.success('PDF Kunci Jawaban berhasil diunduh!');
+                    }}
+                  >
+                    <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 shrink-0">
+                      <KeyRound className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-800">Kunci Jawaban</p>
+                      <p className="text-xs text-slate-400">Download kunci jawaban dalam format PDF</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Answer Key Section ── */}
+          {showAnswerKey && (
+            <div className="bg-white rounded-[28px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500">
+                  <BookText className="w-6 h-6" />
+                </div>
+                <h2 className="text-lg font-black text-slate-800">Kunci Jawaban</h2>
+              </div>
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                {questions.map((q, idx) => {
+                  const studentAns = answers[idx];
+                  const correctAns = q.kunci_jawaban || '';
+                  let isCorrect = false;
+
+                  if (q.tipe_soal === 'BENAR_SALAH') {
+                    const studentMap = (typeof studentAns === 'object' && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
+                    const correctParts = correctAns.split(',').map(v => v.trim());
+                    let allCorrect = correctParts.length > 0;
+                    correctParts.forEach(part => {
+                      const [key, val] = part.split(':');
+                      if (studentMap[key] !== val) allCorrect = false;
+                    });
+                    isCorrect = allCorrect;
+                  } else if (q.tipe_soal === 'PG_KOMPLEKS') {
+                    const studentArr = Array.isArray(studentAns) ? [...studentAns].sort() : [];
+                    const correctArr = correctAns.split(',').map(v => v.trim()).sort();
+                    isCorrect = studentArr.length > 0 && studentArr.join(',') === correctArr.join(',');
+                  } else {
+                    isCorrect = studentAns === correctAns;
+                  }
+
+                  // Get answer text from options
+                  const correctOption = q.opsi_jawaban?.find((o: any) => o.key === correctAns);
+                  const correctText = correctOption?.label || correctAns;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-5 rounded-2xl border-2 transition-colors ${isCorrect ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/50'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-start gap-3">
+                          <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-black shrink-0 ${isCorrect ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                            }`}>
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-slate-700 font-medium leading-relaxed pt-1">
+                            {q.teks_soal?.substring(0, 120)}{q.teks_soal && q.teks_soal.length > 120 ? '...' : ''}
+                          </p>
+                        </div>
+                        {isCorrect ? (
+                          <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
+                        ) : (
+                          <XCircle className="w-6 h-6 text-rose-500 shrink-0" />
+                        )}
+                      </div>
+                      <div className="ml-11 space-y-1">
+                        <p className="text-xs font-bold text-emerald-700">
+                          Jawaban benar: {correctText}
+                        </p>
+                        {!isCorrect && (
+                          <p className="text-xs font-bold text-rose-500 flex items-center gap-1">
+                            <XCircle className="w-3.5 h-3.5" /> Jawaban Anda salah
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ═══ Submit Identity Modal ═══ */}
+        <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+          <DialogContent className="sm:max-w-[480px] rounded-[24px] border-none p-8 gap-6 shadow-2xl z-[100]">
+            <DialogHeader className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-50 text-blue-500">
+                  <Send className="w-6 h-6" />
+                </div>
+                <DialogTitle className="text-2xl font-black text-slate-800">Kirim Hasil ke Guru</DialogTitle>
+              </div>
+              <DialogDescription className="text-slate-500 font-medium leading-relaxed">
+                Masukkan kode kelas dan nama lengkapmu untuk mengirim hasil ujian ke guru.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5 py-2">
+              {unansweredCount > 0 && (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 p-4 rounded-xl">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                  <p className="text-amber-700 text-xs font-bold leading-tight">
+                    Perhatian: Masih ada {unansweredCount} soal yang belum Anda jawab!
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Nama Lengkap</Label>
+                <input
+                  value={namaSiswa}
+                  onChange={(e) => setNamaSiswa(e.target.value)}
+                  placeholder="Masukkan nama lengkapmu"
+                  className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 outline-none transition-all font-medium text-slate-800 placeholder:text-gray-400"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Kode Kelas</Label>
+                <input
+                  value={kodeKelas}
+                  onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
+                  placeholder="Contoh: MONO123"
+                  className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
+                />
+              </div>
+            </div>
+            <div className="pt-2">
+              <Button
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting}
+                className={`w-full h-14 rounded-xl text-white font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${isSubmitting ? "bg-slate-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200"}`}
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Mengirim...</span>
+                  </div>
+                ) : (
+                  "Kirim Hasil"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
+
+
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 font-sans">
@@ -921,20 +1701,75 @@ const ExamInterface = () => {
       </div>
 
       <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Kirim Jawaban</DialogTitle>
-            <DialogDescription>Pastikan identitas Anda benar sebelum mengakhiri sesi.</DialogDescription>
+        <DialogContent className="sm:max-w-[480px] rounded-[24px] border-none p-8 gap-6 shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${isSurvey ? "bg-rose-50 text-rose-500" : "bg-blue-50 text-blue-500"}`}>
+                <Send className="w-6 h-6" />
+              </div>
+              <DialogTitle className="text-2xl font-black text-slate-800">Kirim Hasil ke Guru</DialogTitle>
+            </div>
+            <DialogDescription className="text-slate-500 font-medium leading-relaxed">
+              Masukkan kode kelas dan nama lengkapmu untuk mengirim hasil {isSurvey ? "survei" : "ujian"} ke guru.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {unansweredCount > 0 && <p className="bg-amber-50 p-3 rounded-lg text-amber-700 text-xs font-bold text-left">Masih ada {unansweredCount} soal belum dijawab!</p>}
-            <div className="space-y-2"><Label className="text-left block text-slate-700 font-bold">Nama Lengkap</Label><Input value={namaSiswa} onChange={(e) => setNamaSiswa(e.target.value)} /></div>
-            <div className="space-y-2"><Label className="text-left block text-slate-700 font-bold">Kode Kelas</Label><Input value={kodeKelas} onChange={(e) => setKodeKelas(e.target.value.toUpperCase())} /></div>
+
+          <div className="space-y-5 py-2">
+            {unansweredCount > 0 && (
+              <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 p-4 rounded-xl">
+                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                <p className="text-amber-700 text-xs font-bold leading-tight">
+                  Perhatian: Masih ada {unansweredCount} soal yang belum Anda jawab!
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">
+                Nama Lengkap
+              </Label>
+              <input
+                value={namaSiswa}
+                onChange={(e) => setNamaSiswa(e.target.value)}
+                placeholder="Masukkan nama lengkapmu"
+                className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 outline-none transition-all font-medium text-slate-800 placeholder:text-gray-400"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">
+                Kode Kelas
+              </Label>
+              <input
+                value={kodeKelas}
+                onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
+                placeholder="Contoh: MONO123"
+                className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
+              />
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSubmitDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleFinalSubmit} disabled={isSubmitting} className="bg-emerald-500 text-white font-bold">{isSubmitting ? "Mengirim..." : "Selesai & Kirim"}</Button>
-          </DialogFooter>
+
+          <div className="pt-2">
+            <Button
+              onClick={handleFinalSubmit}
+              disabled={isSubmitting}
+              className={`w-full h-14 rounded-xl text-white font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${isSubmitting
+                ? "bg-slate-400 cursor-not-allowed"
+                : isSurvey
+                  ? "bg-rose-500 hover:bg-rose-600 shadow-rose-200"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
+                }`}
+            >
+              {isSubmitting ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Mengirim...</span>
+                </div>
+              ) : (
+                "Kirim Hasil"
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
