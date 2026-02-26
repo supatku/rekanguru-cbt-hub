@@ -535,8 +535,228 @@ const ExamInterface = () => {
       { nama: 'Komunikasi', skor: 100, status: 'Sangat Baik', color: 'bg-rose-500', hex: '#f43f5e' },
     ];
 
+    // Dummy aspect data for Sulingjar visualization
+    const aspekSulingjar = [
+      { nama: 'Iklim Keamanan', skor: 63, status: 'Cukup', color: 'bg-teal-500', hex: '#0d9488' },
+      { nama: 'Iklim Inklusivitas dan Kebhinekaan', skor: 69, status: 'Cukup', color: 'bg-blue-500', hex: '#3b82f6' },
+      { nama: 'Budaya Satuan Pendidikan', skor: 69, status: 'Cukup', color: 'bg-orange-500', hex: '#f97316' },
+      { nama: 'Praktik Pembelajaran', skor: 88, status: 'Sangat Baik', color: 'bg-red-500', hex: '#ef4444' },
+      { nama: 'Kualitas Pengajaran', skor: 100, status: 'Sangat Baik', color: 'bg-purple-500', hex: '#a855f7' },
+    ];
+
+    const getStatusLabel = (skor: number) =>
+      skor >= 88 ? 'Sangat Baik' : skor >= 75 ? 'Baik' : skor >= 50 ? 'Cukup' : 'Perlu Ditingkatkan';
+
+    // ─── SULINGJAR: Premium Teal-Mint Results UI ───
+    if (isSulingjar) {
+      const sulingjarTotalSkor = aspekSulingjar.reduce((s, a) => s + a.skor, 0);
+      const sulingjarMaxSkor = aspekSulingjar.length * 100;
+      const sulingjarPersen = sulingjarMaxSkor > 0 ? Math.round((sulingjarTotalSkor / sulingjarMaxSkor) * 100) : 0;
+      const sulingjarStatus = getStatusLabel(sulingjarPersen);
+
+      return (
+        <div className="bg-teal-50 min-h-screen p-6 relative flex flex-col items-center">
+          {/* Refresh Button — Top Right */}
+          <button
+            onClick={() => window.location.reload()}
+            className="absolute top-5 right-5 w-11 h-11 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-sm hover:shadow-md hover:bg-slate-50 transition-all active:scale-95 z-10"
+            title="Muat ulang"
+          >
+            <RefreshCw className="w-4.5 h-4.5 text-slate-600" />
+          </button>
+
+          {/* Header */}
+          <header className="pt-6 pb-8 text-center">
+            <div className="mx-auto w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center shadow-lg shadow-teal-200 mb-4">
+              <BookIcon className="text-white w-8 h-8" />
+            </div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Hasil Survei Lingkungan Belajar</h1>
+            <p className="text-slate-500 font-semibold text-sm mt-2">Kualitas Lingkungan Belajar</p>
+          </header>
+
+          {/* Main Grid */}
+          <main className="w-full max-w-6xl mx-auto px-0 lg:px-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* ═══ Left Column ═══ */}
+              <div className="space-y-6">
+                {/* Score Summary Card */}
+                <div className="bg-white rounded-[32px] p-8 shadow-sm flex flex-col items-center text-center">
+                  <span className="text-7xl font-black text-teal-600 tracking-tighter mb-2">
+                    {sulingjarPersen}%
+                  </span>
+                  <Badge className="bg-teal-100 text-teal-700 hover:bg-teal-100 border-none font-black px-6 py-2 rounded-full text-sm mb-8">
+                    {sulingjarStatus}
+                  </Badge>
+                  <div className="grid grid-cols-2 gap-4 w-full">
+                    <div className="bg-slate-50 rounded-2xl p-4 flex flex-col items-center">
+                      <CheckCircle2 className="w-5 h-5 text-teal-500 mb-1" />
+                      <span className="text-2xl font-black text-slate-800">{finalResult.correct}</span>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Skor</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl p-4 flex flex-col items-center">
+                      <LayoutPanelLeft className="w-5 h-5 text-teal-500 mb-1" />
+                      <span className="text-2xl font-black text-slate-800">{finalResult.total}</span>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Skor Maksimal</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Horizontal Bar Chart Card */}
+                <div className="bg-white rounded-[32px] p-8 shadow-sm">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-teal-500">
+                      <BarChart3 className="w-6 h-6" />
+                    </div>
+                    <h2 className="text-lg font-black text-slate-800">Skor per Aspek</h2>
+                  </div>
+                  <div className="space-y-4">
+                    {aspekSulingjar.map((asp, idx) => (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-500 truncate max-w-[140px]">{asp.nama}</span>
+                          <span className="text-[11px] font-black text-slate-600">{asp.skor}%</span>
+                        </div>
+                        <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${asp.color} transition-all duration-1000 ease-out`}
+                            style={{ width: `${asp.skor}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center mt-4 text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                    <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ═══ Right Column: Detail Aspek ═══ */}
+              <div className="bg-white rounded-[32px] p-8 shadow-sm flex flex-col overflow-hidden" style={{ maxHeight: '720px' }}>
+                <div className="flex items-center gap-3 mb-6 shrink-0">
+                  <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-teal-500">
+                    <BookIcon className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-lg font-black text-slate-800">Detail Aspek Lingkungan</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto pr-2 space-y-5 max-h-[600px]">
+                  {aspekSulingjar.map((asp, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-slate-700">{asp.nama}</span>
+                        <span
+                          className={`text-xs font-black px-2.5 py-1 rounded-lg ${asp.skor >= 80 ? 'bg-emerald-50 text-emerald-600' : asp.skor >= 50 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}
+                        >
+                          {asp.skor}%
+                        </span>
+                      </div>
+                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${asp.skor}%`, backgroundColor: asp.hex }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: asp.hex }} />
+                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: asp.hex }}>
+                          {asp.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Kirim ke Guru — inside right card */}
+                <div className="mt-6 shrink-0">
+                  {!isSubmitted && (
+                    <Button
+                      onClick={() => setIsSubmitDialogOpen(true)}
+                      className="w-full h-14 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-black text-lg shadow-xl shadow-teal-200/50 flex items-center justify-center gap-3 transition-all active:scale-95"
+                    >
+                      <Send className="w-6 h-6 rotate-[-20deg]" /> Kirim ke Guru
+                    </Button>
+                  )}
+                  {isSubmitted && (
+                    <div className="flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <span className="text-sm font-bold text-emerald-700">Hasil sudah terkirim ke Guru!</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Kembali ke Menu — below grid, centered */}
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={() => navigate(`/mapel/${level}/${paket}`)}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl py-3 px-6 flex items-center gap-2 font-medium shadow-sm transition-all active:scale-95"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                Kembali ke Menu
+              </button>
+            </div>
+          </main>
+
+          {/* ═══ Submit Identity Modal ═══ */}
+          <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+            <DialogContent className="sm:max-w-[480px] rounded-[24px] border-none p-8 gap-6 shadow-2xl z-[100]">
+              <DialogHeader className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-teal-50 text-teal-600">
+                    <Send className="w-6 h-6" />
+                  </div>
+                  <DialogTitle className="text-2xl font-black text-slate-800">Kirim Hasil ke Guru</DialogTitle>
+                </div>
+                <DialogDescription className="text-slate-500 font-medium leading-relaxed">
+                  Masukkan kode kelas dan nama lengkapmu untuk mengirim hasil survei ke guru.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-5 py-2">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Nama Lengkap</Label>
+                  <input
+                    value={namaSiswa}
+                    onChange={(e) => setNamaSiswa(e.target.value)}
+                    placeholder="Masukkan nama lengkapmu"
+                    className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50/50 outline-none transition-all font-medium text-slate-800 placeholder:text-gray-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Kode Kelas</Label>
+                  <input
+                    value={kodeKelas}
+                    onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
+                    placeholder="Contoh: SKS4"
+                    className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
+                  />
+                </div>
+              </div>
+              <div className="pt-2">
+                <Button
+                  onClick={handleFinalSubmit}
+                  disabled={isSubmitting}
+                  className={`w-full h-14 rounded-xl text-white font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${isSubmitting ? "bg-slate-400 cursor-not-allowed" : "bg-teal-600 hover:bg-teal-700 shadow-teal-200"}`}
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Mengirim...</span>
+                    </div>
+                  ) : (
+                    "Kirim Hasil"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      );
+    }
+
     // ─── SURVEY KARAKTER: Premium Pink-Pastel Results UI ───
-    if (isSurvey) {
+    if (isSurvey && !isSulingjar) {
       return (
         <div className="min-h-screen bg-pink-50 pb-10">
           {/* Header */}
