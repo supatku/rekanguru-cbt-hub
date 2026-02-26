@@ -269,21 +269,38 @@ const ExamInterface = () => {
       const correctAns = q.kunci_jawaban || "";
       let isCorrect = false;
 
-      if (q.tipe_soal === "SURVEI_LIKERT") {
+      // Force Likert logic for surveys even if tipe_soal isn't explicitly set to SURVEI_LIKERT
+      if (isSurvey || q.tipe_soal === "SURVEI_LIKERT") {
         const weights: Record<string, number> = {};
+        // Expected format: "A:4,B:3,C:2,D:1"
         correctAns.split(",").forEach(part => {
-          const [key, val] = part.split(":").map(v => v.trim());
-          if (key && val) weights[key] = parseInt(val, 10);
+          const pair = part.split(":");
+          if (pair.length === 2) {
+            const [key, val] = pair.map(v => v.trim());
+            if (key && val) weights[key] = parseInt(val, 10);
+          }
         });
-        const weight = weights[studentAns as string] || 0;
-        totalEarnedScore += weight;
+
+        // If weights exist, use them. Otherwise fallback to binary correct/incorrect
+        if (Object.keys(weights).length > 0) {
+          const weight = weights[studentAns as string] || 0;
+          totalEarnedScore += weight;
+        } else {
+          isCorrect = studentAns === correctAns;
+          if (isCorrect) totalEarnedScore += 4; // Default full score for survey if correct
+        }
       } else if (q.tipe_soal === "BENAR_SALAH") {
         const studentMap = (typeof studentAns === "object" && !Array.isArray(studentAns)) ? studentAns as Record<string, string> : {};
         const correctParts = correctAns.split(",").map(v => v.trim());
         let allCorrect = correctParts.length > 0;
         correctParts.forEach(part => {
-          const [key, val] = part.split(":");
-          if (studentMap[key] !== val) allCorrect = false;
+          const pair = part.split(":");
+          if (pair.length === 2) {
+            const [key, val] = pair;
+            if (studentMap[key] !== val) allCorrect = false;
+          } else {
+            allCorrect = false;
+          }
         });
         isCorrect = allCorrect;
       } else if (q.tipe_soal === "PG_KOMPLEKS") {
@@ -294,9 +311,9 @@ const ExamInterface = () => {
         isCorrect = studentAns === correctAns;
       }
 
-      if (isCorrect && q.tipe_soal !== "SURVEI_LIKERT") {
+      if (isCorrect && !isSurvey && q.tipe_soal !== "SURVEI_LIKERT") {
         correctCount++;
-      } else if (!isCorrect && q.tipe_soal !== "SURVEI_LIKERT") {
+      } else if (!isCorrect && !isSurvey && q.tipe_soal !== "SURVEI_LIKERT") {
         const topic = q.topik || "Materi Umum";
         if (!incorrectByTopic[topic]) incorrectByTopic[topic] = [];
         incorrectByTopic[topic].push(idx + 1);
@@ -304,8 +321,8 @@ const ExamInterface = () => {
     });
 
     let score = 0;
+    const maxScore = questions.length * 4;
     if (isSurvey) {
-      const maxScore = questions.length * 4;
       score = maxScore > 0 ? Math.round((totalEarnedScore / maxScore) * 100) : 0;
     } else {
       score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
@@ -314,8 +331,8 @@ const ExamInterface = () => {
     return {
       score,
       correct: isSurvey ? totalEarnedScore : correctCount,
-      wrong: isSurvey ? (questions.length * 4) : questions.length - correctCount,
-      total: isSurvey ? (questions.length * 4) : questions.length,
+      wrong: isSurvey ? (maxScore - totalEarnedScore) : questions.length - correctCount,
+      total: isSurvey ? maxScore : questions.length,
       analysis: incorrectByTopic
     };
   }, [questions, answers, isSurvey]);
@@ -678,7 +695,7 @@ const ExamInterface = () => {
                   <input
                     value={kodeKelas}
                     onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
-                    placeholder="Contoh: MONO123"
+                    placeholder="Contoh: SKS4"
                     className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
                   />
                 </div>
@@ -1452,7 +1469,7 @@ const ExamInterface = () => {
                 <input
                   value={kodeKelas}
                   onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
-                  placeholder="Contoh: MONO123"
+                  placeholder="Contoh: SKS4"
                   className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
                 />
               </div>
@@ -1826,7 +1843,7 @@ const ExamInterface = () => {
               <input
                 value={kodeKelas}
                 onChange={(e) => setKodeKelas(e.target.value.toUpperCase())}
-                placeholder="Contoh: MONO123"
+                placeholder="Contoh: SKS4"
                 className="w-full border-2 border-gray-200 bg-gray-50 p-4 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 outline-none transition-all font-black text-slate-800 placeholder:text-gray-400 uppercase tracking-wider"
               />
             </div>

@@ -261,7 +261,7 @@ const CharacterResult = () => {
                             <Label htmlFor="classCode" className="text-xs font-black uppercase text-slate-400 tracking-wider">Kode Kelas</Label>
                             <Input
                                 id="classCode"
-                                placeholder="Contoh: MONO123"
+                                placeholder="Contoh: SKS4"
                                 className="h-12 rounded-xl border-slate-200 focus:border-pink-300 focus:ring-pink-100 font-medium uppercase"
                                 value={classCode}
                                 onChange={(e) => setClassCode(e.target.value)}

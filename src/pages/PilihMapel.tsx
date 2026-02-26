@@ -119,7 +119,13 @@ const PilihMapel = () => {
 
               {/* CTA */}
               <button
-                onClick={() => navigate(`/exam/${level}/${paket}/${s.id}`)}
+                onClick={() => {
+                  if (s.id === "karakter" || s.id === "sulingjar") {
+                    navigate(`/exam/${level}/1/${s.id}`);
+                  } else {
+                    navigate(`/exam/${level}/${paket}/${s.id}`);
+                  }
+                }}
                 className={`flex w-full items-center justify-center gap-1.5 rounded-full ${s.buttonClass} px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all duration-200`}
               >
                 {s.buttonLabel}
