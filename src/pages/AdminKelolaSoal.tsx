@@ -30,7 +30,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Edit2, Lock, Key, Filter, Search, Loader2, Save, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Lock, Key, Filter, Search, Loader2, Save, X, Shuffle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface QuestionOption {
@@ -67,9 +67,14 @@ const AdminKelolaSoal = () => {
     const [filterMapel, setFilterMapel] = useState('Matematika');
     const [filterPaket, setFilterPaket] = useState('1');
 
+    // Randomize setting for current packet
+    const [isRandom, setIsRandom] = useState(false);
+    const [isRandomLoading, setIsRandomLoading] = useState(false);
+
     useEffect(() => {
         if (isAuthenticated) {
             fetchSoal();
+            fetchRandomSetting();
         }
     }, [isAuthenticated, filterJenjang, filterMapel, filterPaket]);
 
@@ -101,6 +106,54 @@ const AdminKelolaSoal = () => {
             toast.error('Gagal memuat soal: ' + error.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    /** Reads the is_random flag for the currently selected packet. */
+    const fetchRandomSetting = async () => {
+        try {
+            const { data } = await supabase
+                .from('tka_pengaturan_paket')
+                .select('is_random')
+                .eq('jenjang', filterJenjang)
+                .eq('mapel', filterMapel)
+                .eq('paket_ke', parseInt(filterPaket))
+                .maybeSingle();
+
+            setIsRandom(data?.is_random ?? false);
+        } catch {
+            // Silently fallback — table may not exist yet
+            setIsRandom(false);
+        }
+    };
+
+    /**
+     * Upserts the is_random flag using the composite unique key (jenjang, mapel, paket_ke).
+     * Using upsert avoids a read-before-write race condition.
+     */
+    const toggleRandomSetting = async () => {
+        setIsRandomLoading(true);
+        const next = !isRandom;
+        try {
+            const { error } = await supabase
+                .from('tka_pengaturan_paket')
+                .upsert(
+                    {
+                        jenjang: filterJenjang,
+                        mapel: filterMapel,
+                        paket_ke: parseInt(filterPaket),
+                        is_random: next,
+                    },
+                    { onConflict: 'jenjang,mapel,paket_ke' }
+                );
+
+            if (error) throw error;
+            setIsRandom(next);
+            toast.success(next ? 'Acak soal diaktifkan!' : 'Acak soal dinonaktifkan.');
+        } catch (error: any) {
+            toast.error('Gagal mengubah pengaturan: ' + error.message);
+        } finally {
+            setIsRandomLoading(false);
         }
     };
 
@@ -296,7 +349,33 @@ const AdminKelolaSoal = () => {
                             </div>
                         </div>
 
-                        <Button onClick={handleOpenAdd} className="bg-sky-600 font-bold hover:bg-sky-500">
+                        {/* ── Acak Soal Toggle ── */}
+                        <div className="flex items-center gap-3 px-4 py-3 border border-dashed border-slate-200 rounded-xl bg-slate-50/80">
+                            <div className="flex items-center gap-2">
+                                <Shuffle className="h-4 w-4 text-slate-400" />
+                                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Acak Urutan Soal</span>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={isRandom}
+                                onClick={toggleRandomSetting}
+                                disabled={isRandomLoading}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${isRandom ? 'bg-blue-600' : 'bg-gray-300'
+                                    }`}
+                            >
+                                <span
+                                    className={`pointer-events-none inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${isRandom ? 'translate-x-5' : 'translate-x-0'
+                                        }`}
+                                >
+                                    {isRandomLoading && (
+                                        <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                                    )}
+                                </span>
+                            </button>
+                        </div>
+
+                        <Button onClick={handleOpenAdd} className="bg-sky-600 font-bold hover:bg-sky-500 whitespace-nowrap">
                             <Plus className="mr-2 h-5 w-5" /> Tambah Soal Baru
                         </Button>
                     </CardContent>
@@ -521,7 +600,7 @@ const AdminKelolaSoal = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 };
 

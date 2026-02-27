@@ -157,6 +157,7 @@ const ExamInterface = () => {
   const [showAnswerKey, setShowAnswerKey] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [expandedAnswerKeys, setExpandedAnswerKeys] = useState<Set<number>>(new Set());
   const [finalResult, setFinalResult] = useState<{
     score: number;
     correct: number;
@@ -171,22 +172,51 @@ const ExamInterface = () => {
     setSeconds(isSurvey ? 1800 : 3600);
   }, [level, paket, mapelLabel]);
 
+  /**
+   * Pure Fisher-Yates shuffle — O(n), unbiased.
+   * Returns a new array; does not mutate the input.
+   */
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
   const fetchQuestions = async () => {
     setIsLoading(true);
     try {
       const paketNumber = parseInt(paket || '1', 10);
+      const safePacket = isNaN(paketNumber) ? 1 : paketNumber;
       const levelUpper = level?.toUpperCase() || "";
       const mapelValue = mapelLabel || "";
 
-      const { data, error } = await supabase
-        .from('tka_bank_soal')
-        .select('*')
-        .eq('jenjang', levelUpper)
-        .eq('paket_ke', isNaN(paketNumber) ? 1 : paketNumber)
-        .eq('mapel', mapelValue);
+      // Parallel fetch: questions + randomize setting — same round-trip cost as before
+      const [questionsResult, settingResult] = await Promise.all([
+        supabase
+          .from('tka_bank_soal')
+          .select('*')
+          .eq('jenjang', levelUpper)
+          .eq('paket_ke', safePacket)
+          .eq('mapel', mapelValue),
+        supabase
+          .from('tka_pengaturan_paket')
+          .select('is_random')
+          .eq('jenjang', levelUpper)
+          .eq('mapel', mapelValue)
+          .eq('paket_ke', safePacket)
+          .maybeSingle(),
+      ]);
 
-      if (error) throw error;
-      setQuestions(data || []);
+      if (questionsResult.error) throw questionsResult.error;
+
+      const fetchedQuestions = questionsResult.data || [];
+      const isRandom = settingResult.data?.is_random ?? false;
+
+      // Apply shuffle before storing — index-based answer tracking stays naturally aligned
+      setQuestions(isRandom ? shuffleArray(fetchedQuestions) : fetchedQuestions);
     } catch (error: any) {
       console.error('Error fetching questions:', error.message);
     } finally {
@@ -1619,14 +1649,30 @@ const ExamInterface = () => {
                         }`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
                           <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-black shrink-0 ${isCorrect ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
                             }`}>
                             {idx + 1}
                           </span>
-                          <p className="text-sm text-slate-700 font-medium leading-relaxed pt-1">
-                            {q.teks_soal?.substring(0, 120)}{q.teks_soal && q.teks_soal.length > 120 ? '...' : ''}
-                          </p>
+                          <div className="min-w-0 flex-1 pt-1">
+                            <p className={`text-sm text-slate-700 font-medium leading-relaxed ${expandedAnswerKeys.has(idx) ? '' : 'line-clamp-2'
+                              }`}>
+                              {q.teks_soal}
+                            </p>
+                            {q.teks_soal && q.teks_soal.length > 120 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedAnswerKeys(prev => {
+                                  const next = new Set(prev);
+                                  next.has(idx) ? next.delete(idx) : next.add(idx);
+                                  return next;
+                                })}
+                                className="text-xs text-blue-500 hover:text-blue-700 hover:underline mt-1 focus:outline-none font-semibold transition-colors"
+                              >
+                                {expandedAnswerKeys.has(idx) ? 'Sembunyikan' : '... Baca selengkapnya'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                         {isCorrect ? (
                           <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
@@ -2018,6 +2064,21 @@ const ExamInterface = () => {
                             {formatSmartText(coreQuestionText)}
                           </div>
                         )}
+
+                        {/* Dynamic instruction text based on question type */}
+                        {(() => {
+                          const instructionMap: Record<string, string> = {
+                            PG_KOMPLEKS: "(Pilih semua jawaban yang benar)",
+                            PGK: "(Pilih semua jawaban yang benar)",
+                            PILIHAN_GANDA_KOMPLEKS: "(Pilih semua jawaban yang benar)",
+                            BENAR_SALAH: "(Tentukan Benar atau Salah untuk setiap pernyataan)",
+                            KATEGORI: "(Tentukan Benar atau Salah untuk setiap pernyataan)",
+                          };
+                          const instruction = instructionMap[question.tipe_soal];
+                          return instruction ? (
+                            <p className="text-sm text-gray-500 italic mt-2 font-normal">{instruction}</p>
+                          ) : null;
+                        })()}
                       </>
                     );
                   })()}
