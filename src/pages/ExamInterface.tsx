@@ -1792,23 +1792,23 @@ const ExamInterface = () => {
             </div>
           ) : (
             <div className="flex flex-col flex-1">
-              {/* Question Card */}
-              <div className="relative flex-1 rounded-xl bg-white p-8 shadow-sm border border-slate-200/60 transition-all">
-                {/* Header Card */}
+              {/* Question Card — Clean Minimal Design */}
+              <div className="relative flex-1 rounded-2xl bg-white p-6 md:p-8 shadow-sm border border-slate-100 transition-all">
+                {/* Header: Soal Badge + Tandai */}
                 <div className="mb-6 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <span className="bg-pink-100 text-pink-600 font-bold px-4 py-1.5 rounded-full text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-teal-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-sm">
                       Soal {currentIndex + 1}
                     </span>
-                    <span className="text-gray-500 text-sm ml-3">dari {TOTAL_QUESTIONS}</span>
+                    <span className="text-gray-400 text-sm font-medium">dari {TOTAL_QUESTIONS}</span>
                   </div>
 
                   <Button
                     variant="outline"
                     onClick={toggleFlag}
-                    className={`flex items-center gap-2 text-gray-600 rounded-lg border transition-all ${flagged.has(currentIndex)
+                    className={`flex items-center gap-2 rounded-lg border text-sm font-semibold transition-all ${flagged.has(currentIndex)
                       ? "bg-amber-50 border-amber-200 text-amber-600"
-                      : "border-gray-200 hover:bg-gray-50"
+                      : "border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                       }`}
                   >
                     <Flag className={`h-4 w-4 ${flagged.has(currentIndex) ? "fill-current" : ""}`} />
@@ -1816,50 +1816,223 @@ const ExamInterface = () => {
                   </Button>
                 </div>
 
-                {/* Kotak Konteks / Pertanyaan Utama */}
-                <div className="space-y-6">
+                {/* Reading Passage / Context Card */}
+                <div className="space-y-5">
                   {(() => {
                     const questionParts = question.teks_soal.split(/\n\n+/);
-                    const contextText = questionParts[0];
-                    const coreQuestionText = questionParts.slice(1).join('\n\n');
+                    // Treat everything except the last paragraph as context/passage
+                    const contextText = questionParts.length > 1
+                      ? questionParts.slice(0, -1).join('\n\n')
+                      : questionParts[0];
+                    const coreQuestionText = questionParts.length > 1
+                      ? questionParts[questionParts.length - 1]
+                      : '';
+
+                    // Smart text formatter: detects inline numbered/lettered lists and renders each item on its own line
+                    const formatSmartText = (text: string) => {
+                      // Check if text contains inline numbered list: e.g. "1. text 2. text 3. text"
+                      // We detect this pattern: a sentence-ending period/space followed by a digit+period
+                      const hasInlineNumberedList = /\.\s+\d+\.\s/.test(text) || /^\d+\.\s/.test(text);
+
+                      if (hasInlineNumberedList) {
+                        // Split by numbered items (1. 2. 3. etc.) while keeping the number prefix
+                        const parts = text.split(/(?=(?:^|\s)\d+\.\s)/g).map(s => s.trim()).filter(Boolean);
+
+                        // Find where the first numbered item starts to extract title/header before it
+                        const firstNumberMatch = text.match(/^(.*?)(?=\d+\.\s)/s);
+                        const titlePart = firstNumberMatch?.[1]?.trim();
+                        const numberedItems = parts.filter(p => /^\d+\.\s/.test(p));
+
+                        // Extract trailing question text from the last numbered item
+                        // e.g. "10. Keringkan handuk bersih. Langkah mencuci tangan yang benar ini..."
+                        let trailingQuestion = '';
+                        if (numberedItems.length > 0) {
+                          const lastItem = numberedItems[numberedItems.length - 1];
+                          // Look for a sentence boundary: period + space + Capital letter, where the trailing part
+                          // ends with a question-like ending (? : … ... or no period at end)
+                          const trailingMatch = lastItem.match(/^(\d+\.\s.*?[.!])\s+([A-Z][^.]*(?:[?:…]|\.{3})\s*$)/s);
+                          if (trailingMatch) {
+                            numberedItems[numberedItems.length - 1] = trailingMatch[1];
+                            trailingQuestion = trailingMatch[2].trim();
+                          } else {
+                            // Also check: trailing sentence that doesn't end with typical step punctuation
+                            const altMatch = lastItem.match(/^(\d+\.\s.*?[.!])\s+([A-Z](?:(?!\d+\.\s).)+$)/s);
+                            if (altMatch && !altMatch[2].match(/^[A-Z]\.\s/)) {
+                              // Only split if trailing part is long enough (likely a question, not part of step)
+                              const trailing = altMatch[2].trim();
+                              if (trailing.length > 20) {
+                                numberedItems[numberedItems.length - 1] = altMatch[1];
+                                trailingQuestion = trailing;
+                              }
+                            }
+                          }
+                        }
+
+                        // If there's a non-numbered prefix before "1.", show it as a title
+                        if (titlePart && !(/^\d+\.\s/.test(titlePart))) {
+                          return (
+                            <div className="space-y-1">
+                              <p className="font-semibold text-gray-800 mb-2">{titlePart}</p>
+                              {numberedItems.map((item, i) => (
+                                <p key={i} className="text-gray-700 pl-1">{item}</p>
+                              ))}
+                              {trailingQuestion && (
+                                <p className="text-gray-800 font-medium mt-4 pt-2">{trailingQuestion}</p>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-1">
+                            {numberedItems.map((item, i) => (
+                              <p key={i} className="text-gray-700">{item}</p>
+                            ))}
+                            {trailingQuestion && (
+                              <p className="text-gray-800 font-medium mt-4 pt-2">{trailingQuestion}</p>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Check for lettered list: "a. text b. text c. text"
+                      const hasInlineLetterList = /\.\s+[a-z]\.\s/i.test(text) && !/[A-Z][a-z]+,\s+\d/.test(text);
+                      if (hasInlineLetterList) {
+                        const parts = text.split(/(?=\s[a-z]\.\s)/gi).map(s => s.trim()).filter(Boolean);
+                        return (
+                          <div className="space-y-1">
+                            {parts.map((item, i) => (
+                              <p key={i} className="text-gray-700">{item}</p>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      // ─── Letter/Surat format detection ───
+                      // Detect patterns: City + date, greeting, closing, signature
+                      const isLetterFormat =
+                        /[A-Z][a-z]+,\s+\d{1,2}\s+\w+\s+\d{4}/.test(text) || // City, DD Month YYYY
+                        /^(?:Halo|Kepada|Dear|Yth|Assalamualaikum|Salam)\s/i.test(text) ||
+                        /(?:Sahabatmu|Hormat saya|Salam hangat|Salam|Tertanda|Wassalam|Hormat kami|Temanmu|Teman kalian)[,.]?\s+[A-Z]/i.test(text);
+
+                      if (isLetterFormat) {
+                        // Build paragraph-break points for letter structure
+                        let formatted = text;
+
+                        // Insert breaks BEFORE greeting patterns
+                        formatted = formatted.replace(
+                          /([.\d])\s+((?:Halo|Kepada|Dear|Yth|Assalamualaikum)\s)/gi,
+                          '$1\n\n$2'
+                        );
+
+                        // Insert break AFTER greeting line (ends with comma)
+                        formatted = formatted.replace(
+                          /((?:Halo|Kepada|Dear|Yth)\s+[^.!?]+,)\s+/gi,
+                          '$1\n\n'
+                        );
+
+                        // Insert break BEFORE closing patterns
+                        formatted = formatted.replace(
+                          /([.!?])\s+((?:Sahabatmu|Hormat saya|Salam hangat|Salam|Tertanda|Wassalam|Hormat kami|Temanmu|Teman kalian)[,.])/gi,
+                          '$1\n\n$2'
+                        );
+
+                        // Insert break AFTER closing line (e.g. "Sahabatmu," → newline → "Anto")
+                        formatted = formatted.replace(
+                          /((?:Sahabatmu|Hormat saya|Salam hangat|Salam|Tertanda|Wassalam|Hormat kami|Temanmu|Teman kalian)[,.])\s+/gi,
+                          '$1\n'
+                        );
+
+                        // Insert breaks between body paragraphs: detect sentence boundaries 
+                        // where next sentence starts a new thought (period + space + capital, after 50+ chars)
+                        const lines = formatted.split('\n');
+                        const refinedLines: string[] = [];
+                        for (const line of lines) {
+                          if (line.length > 80) {
+                            // Try to split long lines at natural paragraph boundaries
+                            // Look for ". " followed by a capital letter mid-sentence
+                            const subParts = line.split(/(?<=[.!?])\s+(?=[A-Z])/);
+                            if (subParts.length > 1) {
+                              // Group sentences into paragraphs (roughly 1-3 sentences each)
+                              let currentPara = subParts[0];
+                              for (let si = 1; si < subParts.length; si++) {
+                                if (currentPara.length > 100) {
+                                  refinedLines.push(currentPara);
+                                  currentPara = subParts[si];
+                                } else {
+                                  currentPara += ' ' + subParts[si];
+                                }
+                              }
+                              refinedLines.push(currentPara);
+                            } else {
+                              refinedLines.push(line);
+                            }
+                          } else {
+                            refinedLines.push(line);
+                          }
+                        }
+
+                        const paragraphs = refinedLines
+                          .join('\n')
+                          .split(/\n+/)
+                          .map(p => p.trim())
+                          .filter(Boolean);
+
+                        return (
+                          <div className="space-y-4">
+                            {paragraphs.map((para, i) => (
+                              <p key={i} className="text-gray-800 leading-relaxed">{para}</p>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      // Default: render with whitespace preserved
+                      return <span className="whitespace-pre-line">{text}</span>;
+                    };
 
                     return (
                       <>
-                        <div className="bg-blue-50 border border-blue-100 text-gray-800 p-5 rounded-xl text-base leading-relaxed shadow-sm">
-                          {question.link_gambar && (
-                            <div className="mb-4 bg-white rounded-lg p-2 border border-blue-50/50 shadow-sm overflow-hidden">
-                              <img
-                                src={question.link_gambar}
-                                alt="Ilustrasi Soal"
-                                className="w-full max-h-64 object-contain mx-auto"
-                              />
+                        <div className="relative rounded-xl bg-white border border-slate-100 overflow-hidden">
+                          {/* Left teal border accent */}
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-teal-400 rounded-l-xl" />
+                          <div className="pl-5 pr-5 py-5">
+                            <span className="text-teal-500 text-xs font-bold uppercase tracking-wider mb-2 block">Bacaan:</span>
+                            {question.link_gambar && (
+                              <div className="mb-4 bg-slate-50 rounded-lg p-2 border border-slate-100 overflow-hidden">
+                                <img
+                                  src={question.link_gambar}
+                                  alt="Ilustrasi Soal"
+                                  className="w-full max-h-64 object-contain mx-auto"
+                                />
+                              </div>
+                            )}
+                            <div className="text-gray-800 text-[15px] leading-relaxed font-normal">
+                              {formatSmartText(contextText)}
                             </div>
-                          )}
-                          <p className="font-medium">
-                            {contextText}
-                          </p>
+                          </div>
                         </div>
 
                         {coreQuestionText && (
-                          <p className="text-gray-900 font-bold text-lg leading-snug">
-                            {coreQuestionText}
-                          </p>
+                          <div className="text-gray-800 font-medium text-base leading-relaxed pt-1">
+                            {formatSmartText(coreQuestionText)}
+                          </div>
                         )}
                       </>
                     );
                   })()}
                 </div>
 
-                {/* Options List */}
-                <div className="space-y-3">
+                {/* Options List — Pill Radio Design */}
+                <div className="space-y-3 mt-6">
                   {question.tipe_soal === "BENAR_SALAH" ? (
                     question.opsi_jawaban?.map((opt) => {
                       const sMap = (typeof answers[currentIndex] === "object" && !Array.isArray(answers[currentIndex]))
                         ? answers[currentIndex] as Record<string, string>
                         : {};
                       return (
-                        <div key={opt.key} className="p-4 mb-3 border border-gray-200 rounded-2xl bg-white shadow-sm transition-all hover:bg-gray-50">
-                          <p className="mb-4 text-sm font-bold text-gray-700">{opt.label}</p>
+                        <div key={opt.key} className="p-4 border border-slate-200 rounded-2xl bg-white transition-all hover:border-slate-300">
+                          <p className="mb-4 text-sm font-semibold text-gray-700">{opt.label}</p>
                           <div className="grid grid-cols-2 gap-3">
                             <button
                               onClick={() => handleAnswer(currentIndex, `${opt.key}:B`)}
@@ -1894,21 +2067,25 @@ const ExamInterface = () => {
                         <button
                           key={opt.key}
                           onClick={() => handleAnswer(currentIndex, opt.key)}
-                          className={`flex items-center w-full text-left p-4 mb-3 border rounded-2xl cursor-pointer transition-all duration-200 ${isSelected
-                            ? "border-blue-500 bg-blue-50 shadow-sm"
-                            : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                          className={`flex items-center w-full text-left px-5 py-4 border-2 rounded-2xl cursor-pointer transition-all duration-200 group ${isSelected
+                            ? "border-cyan-400 bg-cyan-50/30"
+                            : "border-yellow-200 bg-white hover:border-yellow-300 hover:bg-yellow-50/20"
                             }`}
                         >
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mr-4 shrink-0 transition-all ${isSelected
-                            ? "bg-blue-500 text-white shadow-md shadow-blue-200"
-                            : "bg-gray-100 text-gray-600"
+                          {/* Pill Radio Indicator */}
+                          <div className={`w-6 h-10 rounded-full border-2 flex items-center justify-center mr-4 shrink-0 transition-all ${isSelected
+                            ? "border-cyan-400 bg-cyan-400"
+                            : "border-slate-300 bg-white group-hover:border-slate-400"
                             }`}>
-                            {opt.key}
+                            {isSelected && (
+                              <div className="w-2 h-5 rounded-full bg-white" />
+                            )}
                           </div>
-                          <p className={`text-sm md:text-base font-medium leading-relaxed ${isSelected
-                            ? "text-blue-900"
-                            : "text-gray-700"
+                          <p className={`text-sm md:text-base leading-relaxed ${isSelected
+                            ? "text-gray-900 font-semibold"
+                            : "text-gray-700 font-medium"
                             }`}>
+                            <span className="font-semibold mr-1.5">{opt.key}.</span>
                             {opt.label}
                           </p>
                         </button>
@@ -1918,14 +2095,14 @@ const ExamInterface = () => {
                 </div>
               </div>
 
-              {/* Navigation Footer */}
+              {/* Navigation Footer — Clean Design */}
               <div className="flex items-center justify-between py-6">
                 <button
                   onClick={goPrev}
                   disabled={currentIndex === 0}
-                  className="flex h-11 items-center gap-2 rounded-lg px-6 text-sm font-bold text-slate-400 transition-all hover:text-slate-600 disabled:opacity-30"
+                  className="flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md active:scale-95 disabled:opacity-30 disabled:hover:shadow-sm"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ArrowLeft className="h-4 w-4" />
                   Sebelumnya
                 </button>
 
@@ -1936,10 +2113,10 @@ const ExamInterface = () => {
                 <button
                   onClick={goNext}
                   disabled={currentIndex === TOTAL_QUESTIONS - 1}
-                  className="flex h-11 items-center gap-2 rounded-lg bg-[#0ea5e9] px-6 text-sm font-bold text-white shadow-md shadow-sky-500/20 transition-all hover:bg-sky-500 active:scale-95 disabled:opacity-30"
+                  className="flex h-12 items-center gap-2 rounded-xl bg-[#0ea5e9] px-6 text-sm font-bold text-white shadow-md shadow-sky-500/20 transition-all hover:bg-sky-500 active:scale-95 disabled:opacity-30"
                 >
                   Selanjutnya
-                  <ChevronRight className="h-5 w-5" />
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
