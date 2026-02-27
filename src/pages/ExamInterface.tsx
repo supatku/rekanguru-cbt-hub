@@ -1776,52 +1776,53 @@ const ExamInterface = () => {
             <ChevronLeft className="h-6 w-6" />
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg shadow-lg ${subjectTheme.headerBg}`}>
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className={`hidden sm:flex h-10 w-10 items-center justify-center rounded-lg shadow-lg ${subjectTheme.headerBg}`}>
               <subjectTheme.icon className="h-6 w-6 text-white" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-base font-bold leading-tight">
+              <h1 className="text-sm md:text-base font-bold leading-tight line-clamp-1">
                 {mapelLabel}
               </h1>
-              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-tight">
-                {isSulingjar ? "Kualitas Lingkungan Belajar" : isSurvey ? "8 Dimensi Profil Lulusan" : "Tes Kemampuan Akademik"}
+              <span className="text-[10px] md:text-[11px] font-medium text-slate-400 uppercase tracking-tight line-clamp-1">
+                {isSulingjar ? "Lingkungan Belajar" : isSurvey ? "Profil Lulusan" : "Akademik"}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <button
             onClick={() => window.location.reload()}
-            className="flex items-center justify-center h-10 w-10 rounded-full hover:bg-white/10 transition-colors text-slate-300"
+            className="hidden sm:flex items-center justify-center h-10 w-10 rounded-full hover:bg-white/10 transition-colors text-slate-300"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
 
           {/* Timer - Relocated here */}
-          <div className="flex items-center gap-2 px-3 h-10 bg-slate-700/50 rounded-lg border border-slate-600/50">
-            <Clock className="h-4 w-4 text-emerald-400" />
-            <span className="font-mono text-sm font-bold text-emerald-400 tracking-wider">
+          <div className="flex items-center gap-2 px-2 md:px-3 h-9 md:h-10 bg-slate-700/50 rounded-lg border border-slate-600/50">
+            <Clock className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="font-mono text-xs md:text-sm font-bold text-emerald-400 tracking-wider">
               {formatTime(seconds)}
             </span>
           </div>
 
-          <div className="flex items-center justify-center min-w-[80px] h-10 px-4 rounded-lg bg-slate-700/50 text-slate-300 font-bold text-sm">
+          <div className="hidden md:flex items-center justify-center min-w-[80px] h-10 px-4 rounded-lg bg-slate-700/50 text-slate-300 font-bold text-sm">
             {answeredCount}/{TOTAL_QUESTIONS}
           </div>
 
           <Button
             onClick={() => setShowConfirmModal(true)}
-            className="h-10 rounded-lg bg-[#f97316] px-5 font-bold text-white hover:bg-orange-600 transition-all active:scale-95"
+            className="h-9 md:h-10 rounded-lg bg-[#f97316] px-3 md:px-5 font-bold text-white hover:bg-orange-600 transition-all active:scale-95 text-xs md:text-sm shadow-lg shadow-orange-500/20"
           >
-            Selesai {isSurvey ? "Survei" : "Ujian"}
+            <span className="hidden md:inline">Selesai {isSurvey ? "Survei" : "Ujian"}</span>
+            <span className="md:hidden">Selesai</span>
           </Button>
         </div>
       </header>
 
       {/* Main Layout */}
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 gap-6 p-6 lg:p-8">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 gap-6 p-6 lg:p-8 pb-24 md:pb-6">
 
         {/* Kolom Kiri: Konten Soal */}
         <div className="flex flex-1 flex-col space-y-6">
@@ -2134,12 +2135,12 @@ const ExamInterface = () => {
                             }`}
                         >
                           {/* Pill Radio Indicator */}
-                          <div className={`w-6 h-10 rounded-full border-2 flex items-center justify-center mr-4 shrink-0 transition-all ${isSelected
-                            ? "border-cyan-400 bg-cyan-400"
+                          <div className={`w-4 h-10 rounded-full border-2 flex items-center justify-center mr-4 shrink-0 transition-all ${isSelected
+                            ? "border-cyan-400 bg-white"
                             : "border-slate-300 bg-white group-hover:border-slate-400"
                             }`}>
                             {isSelected && (
-                              <div className="w-2 h-5 rounded-full bg-white" />
+                              <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
                             )}
                           </div>
                           <p className={`text-sm md:text-base leading-relaxed ${isSelected
@@ -2156,29 +2157,38 @@ const ExamInterface = () => {
                 </div>
               </div>
 
-              {/* Navigation Footer — Clean Design */}
-              <div className="flex items-center justify-between py-6">
+              {/* Navigation Footer — Sticky Bottom on Mobile */}
+              <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-4 py-3 z-50 flex justify-between items-center shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] md:static md:shadow-none md:bg-transparent md:border-none md:p-0 md:mt-8">
                 <button
                   onClick={goPrev}
                   disabled={currentIndex === 0}
-                  className="flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md active:scale-95 disabled:opacity-30 disabled:hover:shadow-sm"
+                  className="flex h-11 md:h-12 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 md:px-6 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md active:scale-95 disabled:opacity-30 disabled:hover:shadow-sm"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Sebelumnya
+                  <span className="hidden md:inline">Sebelumnya</span>
                 </button>
 
                 <div className="text-sm font-bold text-slate-400">
                   {currentIndex + 1} / {TOTAL_QUESTIONS}
                 </div>
 
-                <button
-                  onClick={goNext}
-                  disabled={currentIndex === TOTAL_QUESTIONS - 1}
-                  className="flex h-12 items-center gap-2 rounded-xl bg-[#0ea5e9] px-6 text-sm font-bold text-white shadow-md shadow-sky-500/20 transition-all hover:bg-sky-500 active:scale-95 disabled:opacity-30"
-                >
-                  Selanjutnya
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                {currentIndex === TOTAL_QUESTIONS - 1 ? (
+                  <button
+                    onClick={() => setShowConfirmModal(true)}
+                    className="flex h-11 md:h-12 items-center gap-2 rounded-xl bg-blue-600 px-4 md:px-6 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-700 active:scale-95"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Selesai</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={goNext}
+                    className="flex h-11 md:h-12 items-center gap-2 rounded-xl bg-[#0ea5e9] px-3 md:px-6 text-sm font-bold text-white shadow-md shadow-sky-500/20 transition-all hover:bg-sky-500 active:scale-95"
+                  >
+                    <span className="hidden md:inline">Selanjutnya</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           )}
