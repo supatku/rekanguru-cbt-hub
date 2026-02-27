@@ -31,6 +31,7 @@ import {
   ArrowLeft,
   ExternalLink,
   KeyRound,
+  Hammer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1827,14 +1828,19 @@ const ExamInterface = () => {
         {/* Kolom Kiri: Konten Soal */}
         <div className="flex flex-1 flex-col space-y-6">
           {!question ? (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-500">
-                <AlertTriangle className="h-8 w-8" />
+            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-orange-100 bg-orange-50 p-12 text-center shadow-sm">
+              <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white text-orange-500 shadow-md shadow-orange-100">
+                <Hammer className="h-10 w-10" />
               </div>
-              <h2 className="text-xl font-bold text-slate-800">Soal tidak ditemukan.</h2>
-              <p className="mt-1 text-slate-400 font-medium text-sm">Kembali ke beranda untuk memilih paket soal.</p>
-              <Button onClick={() => navigate("/")} className="mt-6 h-10 rounded-xl bg-slate-900 px-6 font-bold text-white">
-                Ke Beranda
+              <h2 className="text-2xl font-black text-slate-800">Paket Soal Sedang Disiapkan! 🚧</h2>
+              <p className="mt-3 max-w-xs text-gray-500 font-medium text-sm leading-relaxed">
+                Bapak/Ibu guru sedang meracik soal-soal seru untuk paket ini. Yuk, pilih paket soal yang lain dulu!
+              </p>
+              <Button
+                onClick={() => navigate(`/paket/${level}`)}
+                className="mt-7 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 px-8 font-bold text-white shadow-lg shadow-blue-200 transition-all active:scale-95"
+              >
+                Pilih Paket Lain
               </Button>
             </div>
           ) : (
