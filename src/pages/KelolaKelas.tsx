@@ -6,7 +6,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge"; // Added Badge import
+import { Badge } from "@/components/ui/badge";
+import TeacherAnnouncement from "@/components/TeacherAnnouncement";
 
 interface Kelas {
   kode: string;
@@ -49,6 +50,7 @@ const KelolaKelas = () => {
       className="min-h-screen relative overflow-hidden flex flex-col items-center justify-start p-4 pt-16 selection:bg-[#D4F5C4]"
       style={{ background: 'radial-gradient(ellipse at 60% 30%, #D4F5C4 0%, #FFFFFF 70%)' }}
     >
+      <TeacherAnnouncement />
       {/* Background blobs removed or adjusted to match the radial gradient base if needed, but the user spec says background base + radial gradient */}
 
       {/* Container */}

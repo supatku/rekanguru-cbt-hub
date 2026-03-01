@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import autoTable from "jspdf-autotable";
 import jsPDF from "jspdf";
+import TeacherAnnouncement from "@/components/TeacherAnnouncement";
 
 /* ─── Helpers ─── */
 const RankIcon = ({ rank }: { rank: number }) => {
@@ -295,6 +296,7 @@ const DashboardGuru = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 font-sans">
+      <TeacherAnnouncement />
       {/* ══════ HEADER ══════ */}
       <header className="sticky top-0 z-30 border-b bg-white px-4 py-4 sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4">

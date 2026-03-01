@@ -30,7 +30,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Edit2, Lock, Key, Filter, Search, Loader2, Save, X, Shuffle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Lock, Key, Filter, Search, Loader2, Save, X, Shuffle, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface QuestionOption {
@@ -71,12 +71,61 @@ const AdminKelolaSoal = () => {
     const [isRandom, setIsRandom] = useState(false);
     const [isRandomLoading, setIsRandomLoading] = useState(false);
 
+    // Announcement settings
+    const [announcementActive, setAnnouncementActive] = useState(false);
+    const [announcementText, setAnnouncementText] = useState('');
+    const [announcementLoading, setAnnouncementLoading] = useState(false);
+
     useEffect(() => {
         if (isAuthenticated) {
             fetchSoal();
             fetchRandomSetting();
         }
     }, [isAuthenticated, filterJenjang, filterMapel, filterPaket]);
+
+    // Fetch announcement once on auth — independent of question filters
+    useEffect(() => {
+        if (isAuthenticated) fetchAnnouncement();
+    }, [isAuthenticated]);
+
+    /** Reads the current announcement state from app_settings (row id=1). */
+    const fetchAnnouncement = async () => {
+        try {
+            const { data } = await supabase
+                .from('app_settings')
+                .select('is_announcement_active, announcement_text')
+                .eq('id', 1)
+                .maybeSingle();
+
+            if (data) {
+                setAnnouncementActive(data.is_announcement_active ?? false);
+                setAnnouncementText(data.announcement_text ?? '');
+            }
+        } catch {
+            // Silently fallback — table may not exist yet
+        }
+    };
+
+    /** Persists the announcement toggle + text to Supabase. */
+    const saveAnnouncement = async () => {
+        setAnnouncementLoading(true);
+        try {
+            const { error } = await supabase
+                .from('app_settings')
+                .update({
+                    is_announcement_active: announcementActive,
+                    announcement_text: announcementText.trim(),
+                })
+                .eq('id', 1);
+
+            if (error) throw error;
+            toast.success('Pengumuman berhasil disimpan!');
+        } catch (err: any) {
+            toast.error('Gagal menyimpan pengumuman: ' + err.message);
+        } finally {
+            setAnnouncementLoading(false);
+        }
+    };
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -377,6 +426,58 @@ const AdminKelolaSoal = () => {
 
                         <Button onClick={handleOpenAdd} className="bg-sky-600 font-bold hover:bg-sky-500 whitespace-nowrap">
                             <Plus className="mr-2 h-5 w-5" /> Tambah Soal Baru
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {/* ── ANNOUNCEMENT MANAGEMENT ── */}
+                <Card className="mb-8 border-none bg-white shadow-sm">
+                    <CardContent className="p-6 space-y-5">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                                <Megaphone className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-black tracking-tight text-slate-900">Pengumuman untuk Guru</h2>
+                                <p className="text-xs text-slate-400 font-medium">Tampil di Dashboard Guru & Kelola Kelas</p>
+                            </div>
+                        </div>
+
+                        {/* Toggle */}
+                        <div className="flex items-center gap-3 px-4 py-3 border border-dashed border-amber-200 rounded-xl bg-amber-50/50">
+                            <span className="text-sm font-medium text-gray-700 whitespace-nowrap flex-1">Tampilkan Pengumuman di Dashboard Guru</span>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={announcementActive}
+                                onClick={() => setAnnouncementActive((prev) => !prev)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${announcementActive ? 'bg-amber-500' : 'bg-gray-300'
+                                    }`}
+                            >
+                                <span
+                                    className={`pointer-events-none inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${announcementActive ? 'translate-x-5' : 'translate-x-0'
+                                        }`}
+                                />
+                            </button>
+                        </div>
+
+                        {/* Textarea */}
+                        <Textarea
+                            rows={4}
+                            placeholder="Tulis isi pengumuman untuk guru di sini..."
+                            value={announcementText}
+                            onChange={(e) => setAnnouncementText(e.target.value)}
+                            className="resize-y rounded-xl border-slate-200 text-sm focus:border-amber-400 focus:ring-amber-400/20"
+                        />
+
+                        {/* Save button */}
+                        <Button
+                            onClick={saveAnnouncement}
+                            disabled={announcementLoading}
+                            className="bg-amber-500 font-bold hover:bg-amber-600 shadow-lg shadow-amber-500/20"
+                        >
+                            {announcementLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Simpan Pengumuman
                         </Button>
                     </CardContent>
                 </Card>
